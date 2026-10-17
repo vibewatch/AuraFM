@@ -29,14 +29,16 @@ const QUICK_GENRES: { key: string; tag: string }[] = [
 const AURA_THEMES: {
   id: ImmersivePreset;
   zh: string;
+  zhShort: string;
   en: string;
+  enShort: string;
   dotColor: string;
 }[] = [
-  { id: 'waves', zh: '蔚蓝大气', en: 'Atmosphere', dotColor: '#38bdf8' },
-  { id: 'aurora', zh: '极地极光', en: 'Aurora', dotColor: '#34d399' },
-  { id: 'ember', zh: '晨昏流金', en: 'Terminator', dotColor: '#fbbf24' },
-  { id: 'dusk', zh: '深空磁层', en: 'Magneto', dotColor: '#60a5fa' },
-  { id: 'sculpture', zh: '电离辉光', en: 'Ionosphere', dotColor: '#22d3ee' },
+  { id: 'waves', zh: '蔚蓝大气', zhShort: '大气', en: 'Atmosphere', enShort: 'Atmo', dotColor: '#38bdf8' },
+  { id: 'aurora', zh: '极地极光', zhShort: '极光', en: 'Aurora', enShort: 'Aurora', dotColor: '#34d399' },
+  { id: 'ember', zh: '晨昏流金', zhShort: '晨昏', en: 'Terminator', enShort: 'Solar', dotColor: '#fbbf24' },
+  { id: 'dusk', zh: '深空磁层', zhShort: '磁层', en: 'Magneto', enShort: 'Mag', dotColor: '#60a5fa' },
+  { id: 'sculpture', zh: '电离辉光', zhShort: '电离', en: 'Ionosphere', enShort: 'Iono', dotColor: '#22d3ee' },
 ];
 
 export const HeaderSearch: React.FC = () => {
@@ -206,12 +208,12 @@ export const HeaderSearch: React.FC = () => {
   return (
     <header
       ref={containerRef}
-      className="pointer-events-none fixed inset-x-5 top-5 z-30 flex items-center justify-between gap-4"
+      className="pointer-events-none fixed inset-x-3 top-3 sm:inset-x-5 sm:top-5 z-30 flex flex-wrap md:flex-nowrap items-center justify-between gap-2 sm:gap-3 md:gap-4"
     >
       {/* Left: Floating Brand & Live Count Capsule */}
-      <div className="glass-pill pointer-events-auto flex items-center gap-3 rounded-full px-4 py-2">
-        <div className="flex items-center gap-2.5">
-          <span className="relative flex h-2.5 w-2.5">
+      <div className="glass-pill pointer-events-auto order-1 flex shrink-0 items-center gap-2 sm:gap-3 rounded-full px-3 py-1.5 sm:px-4 sm:py-2">
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2.5 w-2.5 shrink-0">
             <span
               className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-75"
               style={{ backgroundColor: currentAura.dotColor }}
@@ -221,23 +223,25 @@ export const HeaderSearch: React.FC = () => {
               style={{ backgroundColor: currentAura.dotColor }}
             />
           </span>
-          <span className="font-display text-[15px] font-semibold tracking-tight text-white">
+          <span className="font-display text-[14px] sm:text-[15px] font-semibold tracking-tight text-white">
             GeoRadios
           </span>
         </div>
 
-        <div className="hidden md:flex items-center gap-1.5 border-l border-white/12 pl-3 text-xs text-slate-300/90">
+        <div className="hidden sm:flex items-center gap-1 border-l border-white/12 pl-2.5 sm:pl-3 text-[11px] sm:text-xs text-slate-300/90">
           <span className="font-mono-tech font-medium text-cyan-300">
             {stationCount.toLocaleString()}
           </span>
-          <span>{language === 'zh' ? '全球在线电台' : 'Live Stations'}</span>
+          <span className="hidden lg:inline">
+            {language === 'zh' ? '全球在线电台' : 'Live Stations'}
+          </span>
         </div>
       </div>
 
-      {/* Center: Floating Spotlight Search & Mood Capsule */}
-      <div className="pointer-events-auto relative flex-1 max-w-md">
+      {/* Center (Row 2 on mobile, Center on md+): Floating Spotlight Search & Mood Capsule */}
+      <div className="pointer-events-auto relative order-3 md:order-2 w-full md:w-auto md:flex-1 md:max-w-md min-w-0">
         <div
-          className={`glass-pill flex items-center gap-2 rounded-full px-4 py-2 transition-all duration-200 ${
+          className={`glass-pill flex items-center gap-2 rounded-full px-3.5 py-1.5 sm:px-4 sm:py-2 transition-all duration-200 ${
             focused
               ? 'ring-1 ring-cyan-400/50 bg-slate-900/85'
               : 'hover:border-white/20'
@@ -254,7 +258,7 @@ export const HeaderSearch: React.FC = () => {
               setFocused(true);
             }}
             placeholder={t(language, 'search.placeholder')}
-            className="w-full bg-transparent text-[13px] text-white placeholder-slate-400 focus:outline-none"
+            className="w-full min-w-0 bg-transparent text-[13px] text-white placeholder-slate-400 focus:outline-none"
           />
 
           {/* Active Filter Chip Badge inside capsule */}
@@ -519,26 +523,40 @@ export const HeaderSearch: React.FC = () => {
       </div>
 
       {/* Right: Floating Spatial Controls Capsule */}
-      <div className="glass-pill pointer-events-auto flex items-center gap-1.5 rounded-full p-1.5">
+      <div className="glass-pill pointer-events-auto order-2 md:order-3 flex shrink-0 items-center gap-1 sm:gap-1.5 rounded-full p-1 sm:p-1.5">
         {/* Planetary Musical Aura Theme Cycler */}
         <button
           type="button"
           onClick={cycleAuraTheme}
           title={language === 'zh' ? '切换地球外围光影律动主题' : 'Cycle Planetary Sonic Aura'}
-          className="flex items-center gap-2 rounded-full bg-white/6 px-3 py-1.5 text-xs font-medium text-slate-100 transition hover:bg-white/12"
+          className="flex items-center gap-1.5 sm:gap-2 rounded-full bg-white/6 px-2.5 py-1 sm:px-3 sm:py-1.5 text-xs font-medium text-slate-100 transition hover:bg-white/12"
         >
-          <Sparkles className="h-3.5 w-3.5" style={{ color: currentAura.dotColor }} />
-          <span>{language === 'zh' ? currentAura.zh : currentAura.en}</span>
+          <Sparkles className="h-3.5 w-3.5 shrink-0" style={{ color: currentAura.dotColor }} />
+          <span className="sm:hidden">
+            {language === 'zh' ? currentAura.zhShort : currentAura.enShort}
+          </span>
+          <span className="hidden sm:inline">
+            {language === 'zh' ? currentAura.zh : currentAura.en}
+          </span>
         </button>
 
         {/* Globe Surface Toggle (Satellite / Minimal) */}
         <button
           type="button"
           onClick={() => setGlobeView(globeView === 'realistic' ? 'minimal' : 'realistic')}
-          className="hidden sm:flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
+          title={
+            globeView === 'realistic'
+              ? language === 'zh'
+                ? '卫星地球'
+                : 'Satellite'
+              : language === 'zh'
+              ? '极简地球'
+              : 'Minimal'
+          }
+          className="flex items-center gap-1.5 rounded-full px-2 py-1 sm:px-3 sm:py-1.5 text-xs font-medium text-slate-300 transition hover:bg-white/10 hover:text-white"
         >
-          <Globe2 className="h-3.5 w-3.5 text-cyan-400" />
-          <span>
+          <Globe2 className="h-3.5 w-3.5 shrink-0 text-cyan-400" />
+          <span className="hidden lg:inline">
             {globeView === 'realistic'
               ? language === 'zh'
                 ? '卫星地球'
@@ -555,13 +573,14 @@ export const HeaderSearch: React.FC = () => {
           onClick={() =>
             setInspectorOpen(!(inspectorOpen && inspectorTab === 'library'), 'library')
           }
-          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition ${
+          title={t(language, 'library.button')}
+          className={`flex items-center gap-1 sm:gap-1.5 rounded-full px-2 py-1 sm:px-3 sm:py-1.5 text-xs font-medium transition ${
             inspectorOpen && inspectorTab === 'library'
               ? 'bg-amber-400/20 text-amber-200 ring-1 ring-amber-400/40'
               : 'text-slate-300 hover:bg-white/10 hover:text-white'
           }`}
         >
-          <Bookmark className="h-3.5 w-3.5 text-amber-400" />
+          <Bookmark className="h-3.5 w-3.5 shrink-0 text-amber-400" />
           <span className="hidden sm:inline">{t(language, 'library.button')}</span>
           {favorites.length > 0 && (
             <span className="rounded-full bg-amber-400/20 px-1.5 font-mono-tech text-[11px] font-semibold text-amber-300">
@@ -574,7 +593,7 @@ export const HeaderSearch: React.FC = () => {
         <button
           type="button"
           onClick={() => setLanguage(language === 'zh' ? 'en' : 'zh')}
-          className="rounded-full bg-white/8 px-3 py-1.5 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-400/20 hover:text-white"
+          className="rounded-full bg-white/8 px-2.5 py-1 sm:px-3 sm:py-1.5 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-400/20 hover:text-white"
         >
           {language === 'zh' ? 'EN' : '中文'}
         </button>

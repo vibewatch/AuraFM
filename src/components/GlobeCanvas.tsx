@@ -316,8 +316,12 @@ export const GlobeCanvas: React.FC = () => {
     y: number;
     title: string;
     subtitle: string;
+    isBadge?: boolean;
   } | null>(null);
   const [badges, setBadges] = useState<ScreenBadge[]>([]);
+  const hoveredBadgeRef = useRef<string | null>(null);
+  const prevBadgesSigRef = useRef<string>('');
+  const visibleBadgeSetRef = useRef<Set<string>>(new Set());
 
   // Mutable refs for access inside requestAnimationFrame without recreating WebGL context
   const stateRef = useRef({
@@ -422,7 +426,10 @@ export const GlobeCanvas: React.FC = () => {
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, width / Math.max(1, height), 0.05, 25);
+    const initialAspect = width / Math.max(1, height);
+    const initialFov =
+      initialAspect < 1 ? Math.min(72, 45 / Math.max(0.58, initialAspect)) : 45;
+    const camera = new THREE.PerspectiveCamera(initialFov, initialAspect, 0.05, 25);
 
     // Subtle starfield background
     const starCount = 1200;
@@ -642,20 +649,36 @@ export const GlobeCanvas: React.FC = () => {
         cs.lat = Math.max(-82, Math.min(82, cs.lat + dy * sensitivity));
         cs.velLng = -dx * sensitivity * 0.35;
         cs.velLat = dy * sensitivity * 0.35;
+        hoveredBadgeRef.current = null;
         setHoveredInfo(null);
         return;
       }
 
-      // Hover picking
+      // When hovering a country badge button, keep its dedicated tooltip stable
+      if (hoveredBadgeRef.current) {
+        return;
+      }
+
+      // Ignore pointer moves over UI overlays outside the WebGL canvas
+      if (e.target !== renderer.domElement) {
+        if (stateRef.current.hoveredStationIdx !== -1) {
+          stateRef.current.hoveredStationIdx = -1;
+        }
+        setHoveredInfo((prev) => (prev ? null : prev));
+        return;
+      }
+
+      // Hover picking on the 3D globe canvas
       const coords = getLatLngAtScreenXY(e.clientX, e.clientY);
       const grid = stateRef.current.spatialGrid;
       if (!coords || !grid) {
         stateRef.current.hoveredStationIdx = -1;
-        setHoveredInfo(null);
+        setHoveredInfo((prev) => (prev ? null : prev));
         renderer.domElement.style.cursor = 'grab';
         return;
       }
 
+      const lang = stateRef.current.language;
       const pickRadiusDeg = Math.max(0.45, Math.min(2.2, (cs.distance - 1.0) * 0.95));
       const nearStations = grid.findStationsNear(
         coords.lat,
@@ -665,18 +688,31 @@ export const GlobeCanvas: React.FC = () => {
       );
 
       if (nearStations.length > 0) {
-        const top = nearStations[0];
-        stateRef.current.hoveredStationIdx = top.index;
-        const flag = countryCodeToFlag(top.station.countryCode);
-        const country = getCountryName(top.station.countryCode, stateRef.current.language);
+        // Apply slight hysteresis to prevent boundary flicker between two adjacent stations
+        let chosen = nearStations[0];
+        const prevIdx = stateRef.current.hoveredStationIdx;
+        if (prevIdx >= 0 && chosen.index !== prevIdx) {
+          const prevMatch = nearStations.find((s) => s.index === prevIdx);
+          if (prevMatch && prevMatch.distanceRad <= chosen.distanceRad + 0.0025) {
+            chosen = prevMatch;
+          }
+        }
+
+        stateRef.current.hoveredStationIdx = chosen.index;
+        const flag = countryCodeToFlag(chosen.station.countryCode);
+        const country = getCountryName(chosen.station.countryCode, lang);
+        const moreLabel =
+          lang === 'zh'
+            ? `${flag} ${country} · 附近还有 ${nearStations.length - 1} 个电台`
+            : `${flag} ${country} · +${nearStations.length - 1} more nearby`;
         setHoveredInfo({
           x: e.clientX,
           y: e.clientY,
-          title: top.station.name,
+          title: chosen.station.name,
           subtitle:
             nearStations.length > 1
-              ? `${flag} ${country} · +${nearStations.length - 1} more nearby`
-              : `${flag} ${top.station.region ? `${top.station.region}, ` : ''}${country}`,
+              ? moreLabel
+              : `${flag} ${chosen.station.region ? `${chosen.station.region}, ` : ''}${country}`,
         });
         renderer.domElement.style.cursor = 'pointer';
         return;
@@ -686,23 +722,29 @@ export const GlobeCanvas: React.FC = () => {
       const nearCluster = grid.findClusterNear(
         coords.lat,
         coords.lng,
-        pickRadiusDeg * 1.4,
+        pickRadiusDeg * 1.2,
         stateRef.current.filteredStationIds
       );
-      if (nearCluster) {
+      if (
+        nearCluster &&
+        !visibleBadgeSetRef.current.has(nearCluster.cluster.countryCode)
+      ) {
         const flag = countryCodeToFlag(nearCluster.cluster.countryCode);
-        const country = getCountryName(nearCluster.cluster.countryCode, stateRef.current.language);
+        const country = getCountryName(nearCluster.cluster.countryCode, lang);
         setHoveredInfo({
           x: e.clientX,
           y: e.clientY,
           title: `${flag} ${country}`,
-          subtitle: `${nearCluster.cluster.stations.length} stations`,
+          subtitle:
+            lang === 'zh'
+              ? `${nearCluster.cluster.stations.length.toLocaleString()} 个广播电台`
+              : `${nearCluster.cluster.stations.length.toLocaleString()} stations`,
         });
         renderer.domElement.style.cursor = 'pointer';
         return;
       }
 
-      setHoveredInfo(null);
+      setHoveredInfo((prev) => (prev ? null : prev));
       renderer.domElement.style.cursor = 'grab';
     };
 
@@ -771,7 +813,9 @@ export const GlobeCanvas: React.FC = () => {
       const w = container.clientWidth;
       const h = container.clientHeight;
       renderer.setSize(w, h);
-      camera.aspect = w / Math.max(1, h);
+      const aspect = w / Math.max(1, h);
+      camera.aspect = aspect;
+      camera.fov = aspect < 1 ? Math.min(72, 45 / Math.max(0.58, aspect)) : 45;
       camera.updateProjectionMatrix();
     };
     window.addEventListener('resize', handleResize);
@@ -818,6 +862,8 @@ export const GlobeCanvas: React.FC = () => {
         cs.lng += cs.velLng;
         cs.velLat *= 0.92;
         cs.velLng *= 0.94;
+        if (Math.abs(cs.velLat) < 0.00005) cs.velLat = 0;
+        if (Math.abs(cs.velLng) < 0.00005) cs.velLng = 0;
       }
 
       // Normalize longitude
@@ -961,13 +1007,18 @@ export const GlobeCanvas: React.FC = () => {
       renderer.render(scene, camera);
 
       // Update screen-space decluttered country cluster HTML badges every ~90ms
-      if (now - lastBadgeUpdate > 90) {
+      // Pause badge layout mutations while the user is actively hovering a badge on a stationary globe
+      if (
+        now - lastBadgeUpdate > 90 &&
+        !(hoveredBadgeRef.current && !isDragging && (!anim || !anim.active))
+      ) {
         lastBadgeUpdate = now;
         const w = container.clientWidth;
         const h = container.clientHeight;
         const camDir = camera.position.clone().normalize();
         const nextBadges: ScreenBadge[] = [];
         const filterIds = stateRef.current.filteredStationIds;
+        const topSafe = w < 768 ? 98 : 64;
 
         for (const cl of stateRef.current.clusters) {
           const count = filterIds
@@ -981,13 +1032,13 @@ export const GlobeCanvas: React.FC = () => {
           if (facing < 0.22) continue;
 
           v.project(camera);
-          const sx = (v.x * 0.5 + 0.5) * w;
-          const sy = (-v.y * 0.5 + 0.5) * h;
-          if (sx < 40 || sx > w - 40 || sy < 60 || sy > h - 80) continue;
+          const sx = Math.round((v.x * 0.5 + 0.5) * w);
+          const sy = Math.round((-v.y * 0.5 + 0.5) * h);
+          if (sx < 44 || sx > w - 44 || sy < topSafe || sy > h - 84) continue;
 
-          // Screen-space decluttering (minimum 54px separation)
+          // Pill-shaped screen-space decluttering so horizontal badges never overlap
           const overlaps = nextBadges.some(
-            (b) => Math.hypot(b.x - sx, b.y - sy) < 54
+            (b) => Math.abs(b.x - sx) < 78 && Math.abs(b.y - sy) < 34
           );
           if (!overlaps) {
             nextBadges.push({
@@ -997,9 +1048,17 @@ export const GlobeCanvas: React.FC = () => {
               y: sy,
             });
           }
-          if (nextBadges.length >= 18) break;
+          if (nextBadges.length >= (w < 640 ? 12 : 18)) break;
         }
-        setBadges(nextBadges);
+
+        const sig = nextBadges
+          .map((b) => `${b.countryCode}:${b.count}:${b.x}:${b.y}`)
+          .join('|');
+        if (sig !== prevBadgesSigRef.current) {
+          prevBadgesSigRef.current = sig;
+          visibleBadgeSetRef.current = new Set(nextBadges.map((b) => b.countryCode));
+          setBadges(nextBadges);
+        }
       }
     };
     rafId = requestAnimationFrame(animate);
@@ -1117,12 +1176,36 @@ export const GlobeCanvas: React.FC = () => {
           <button
             key={b.countryCode}
             type="button"
+            data-country-badge={b.countryCode}
+            onPointerDown={(e) => e.stopPropagation()}
+            onPointerEnter={() => {
+              hoveredBadgeRef.current = b.countryCode;
+              stateRef.current.hoveredStationIdx = -1;
+              const flag = countryCodeToFlag(b.countryCode);
+              const country = getCountryName(b.countryCode, language);
+              setHoveredInfo({
+                x: b.x,
+                y: b.y,
+                title: `${flag} ${country}`,
+                subtitle:
+                  language === 'zh'
+                    ? `${b.count.toLocaleString()} 个广播电台 · 点击浏览`
+                    : `${b.count.toLocaleString()} stations · Click to explore`,
+                isBadge: true,
+              });
+            }}
+            onPointerLeave={() => {
+              if (hoveredBadgeRef.current === b.countryCode) {
+                hoveredBadgeRef.current = null;
+                setHoveredInfo((prev) => (prev?.isBadge ? null : prev));
+              }
+            }}
             onClick={() => setSelectedCountryCode(b.countryCode)}
             style={{
-              transform: `translate3d(${b.x}px, ${b.y}px, 0) translate(-50%, -50%)`,
+              left: `${b.x}px`,
+              top: `${b.y}px`,
             }}
-            title={`${getCountryName(b.countryCode, language)}: ${b.count.toLocaleString()} stations`}
-            className="pointer-events-auto absolute top-0 left-0 flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/75 px-2.5 py-0.5 text-xs font-medium text-slate-100 shadow-lg backdrop-blur-md transition duration-200 hover:scale-110 hover:border-cyan-300/60 hover:bg-slate-900/95 hover:text-cyan-200"
+            className="pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/75 px-2.5 py-0.5 text-xs font-medium text-slate-100 shadow-lg backdrop-blur-md transition-[color,background-color,border-color,box-shadow,transform] duration-150 hover:scale-105 hover:border-cyan-300/60 hover:bg-slate-900/95 hover:text-cyan-200"
           >
             <span className="text-xs leading-none">{countryCodeToFlag(b.countryCode)}</span>
             <span className="font-mono-tech text-[11px] text-cyan-200/95">{b.count.toLocaleString()}</span>
@@ -1133,11 +1216,19 @@ export const GlobeCanvas: React.FC = () => {
       {/* Hover Tooltip */}
       {hoveredInfo && (
         <div
-          style={{
-            left: Math.min(window.innerWidth - 260, hoveredInfo.x + 16),
-            top: Math.max(16, hoveredInfo.y - 14),
-          }}
-          className="pointer-events-none fixed z-30 max-w-[240px] rounded-2xl border border-white/12 bg-slate-950/85 px-3.5 py-2.5 shadow-2xl backdrop-blur-xl"
+          style={
+            hoveredInfo.isBadge
+              ? {
+                  left: Math.min(Math.max(120, hoveredInfo.x), window.innerWidth - 120),
+                  top: Math.max(16, hoveredInfo.y - 18),
+                  transform: 'translate(-50%, -100%)',
+                }
+              : {
+                  left: Math.min(window.innerWidth - 260, hoveredInfo.x + 16),
+                  top: Math.max(16, hoveredInfo.y - 14),
+                }
+          }
+          className="pointer-events-none fixed z-30 max-w-[240px] rounded-2xl border border-white/12 bg-slate-950/90 px-3.5 py-2.5 shadow-2xl backdrop-blur-xl"
         >
           <div className="truncate text-[13px] font-semibold text-white">{hoveredInfo.title}</div>
           <div className="mt-0.5 truncate text-xs text-slate-300/85">{hoveredInfo.subtitle}</div>

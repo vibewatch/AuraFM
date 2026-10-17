@@ -135,7 +135,7 @@ export const Overlays: React.FC = () => {
   if (!inspectorOpen) {
     if (!currentStation && !placeInfo) return null;
     return (
-      <div className="pointer-events-auto fixed top-20 right-5 z-20">
+      <div className="pointer-events-auto fixed top-[96px] md:top-20 right-3 sm:right-5 z-20">
         <button
           type="button"
           onClick={() => setInspectorOpen(true, 'place')}
@@ -170,7 +170,7 @@ export const Overlays: React.FC = () => {
   }
 
   return (
-    <aside className="glass-card pointer-events-auto fixed top-20 right-5 z-30 flex w-[348px] max-w-[calc(100vw-2.5rem)] max-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-[28px]">
+    <aside className="glass-card pointer-events-auto fixed top-[96px] md:top-20 right-3 sm:right-5 z-30 flex w-[calc(100vw-1.5rem)] sm:w-[348px] max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-11.5rem)] md:max-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-[24px] sm:rounded-[28px]">
       {/* Top Pill Navigation */}
       <div className="flex items-center justify-between gap-2 px-4 pt-4 pb-3">
         <div className="flex flex-1 items-center rounded-full bg-white/6 p-1">
