@@ -32,11 +32,11 @@ const AURA_THEMES: {
   en: string;
   dotColor: string;
 }[] = [
-  { id: 'waves', zh: '星海流光', en: 'Ocean Aura', dotColor: '#22d3ee' },
-  { id: 'aurora', zh: '极光幻境', en: 'Aurora', dotColor: '#10b981' },
-  { id: 'dusk', zh: '星云紫韵', en: 'Nebula', dotColor: '#ec4899' },
-  { id: 'ember', zh: '日冕金辉', en: 'Solar', dotColor: '#f59e0b' },
-  { id: 'sculpture', zh: '赛博霓虹', en: 'Cyber', dotColor: '#a855f7' },
+  { id: 'waves', zh: '蔚蓝大气', en: 'Atmosphere', dotColor: '#38bdf8' },
+  { id: 'aurora', zh: '极地极光', en: 'Aurora', dotColor: '#34d399' },
+  { id: 'ember', zh: '晨昏流金', en: 'Terminator', dotColor: '#fbbf24' },
+  { id: 'dusk', zh: '深空磁层', en: 'Magneto', dotColor: '#60a5fa' },
+  { id: 'sculpture', zh: '电离辉光', en: 'Ionosphere', dotColor: '#22d3ee' },
 ];
 
 export const HeaderSearch: React.FC = () => {
