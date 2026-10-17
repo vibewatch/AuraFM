@@ -32,16 +32,10 @@ export const App: React.FC = () => {
         e.preventDefault();
         togglePlayPause();
       } else if (e.key === 'Escape') {
-        if (useAppStore.getState().placeModalOpen) {
-          useAppStore.getState().setPlaceModalOpen(false);
-        } else if (useAppStore.getState().visualMode === 'immersive') {
+        if (useAppStore.getState().visualMode === 'immersive') {
           setVisualMode('globe');
-        } else {
-          useAppStore.getState().setSelectedCountryCode(null);
-          useAppStore.getState().setSpotStations(null);
-          useAppStore.getState().setSearchDrawerStations(null);
-          useAppStore.getState().setSettingsOpen(false);
-          useAppStore.getState().setLibraryOpen(false);
+        } else if (useAppStore.getState().inspectorOpen) {
+          useAppStore.getState().setInspectorOpen(false);
         }
       }
     };

@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { ImmersivePreset } from '../types';
 import { audioEngine } from '../lib/audio';
 import { useAppStore } from '../store/useAppStore';
+import { t } from '../lib/i18n';
 
 const FULLSCREEN_VERTEX = /* glsl */ `
   varying vec2 vUv;
@@ -338,17 +339,18 @@ const SCULPTURE_FRAGMENT = /* glsl */ `
   }
 `;
 
-export const PRESET_OPTIONS: { id: ImmersivePreset; label: string }[] = [
-  { id: 'waves', label: 'Flowing Waves' },
-  { id: 'dusk', label: 'Neon Dusk' },
-  { id: 'ember', label: 'Ember' },
-  { id: 'aurora', label: 'Aurora' },
-  { id: 'sculpture', label: '3D Sculpture' },
+export const PRESET_OPTIONS: { id: ImmersivePreset; key: string }[] = [
+  { id: 'waves', key: 'immersive.waves' },
+  { id: 'dusk', key: 'immersive.dusk' },
+  { id: 'ember', key: 'immersive.ember' },
+  { id: 'aurora', key: 'immersive.aurora' },
+  { id: 'sculpture', key: 'immersive.sculpture' },
 ];
 
 export const ImmersiveVisualizer: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const preset = useAppStore((s) => s.immersivePreset);
+  const language = useAppStore((s) => s.language);
   const setPreset = useAppStore((s) => s.setImmersivePreset);
   const setVisualMode = useAppStore((s) => s.setVisualMode);
 
@@ -486,27 +488,27 @@ export const ImmersiveVisualizer: React.FC = () => {
       <div ref={containerRef} className="h-full w-full" />
 
       {/* Preset switcher pills */}
-      <div className="pointer-events-auto absolute top-20 right-4 z-20 flex flex-wrap items-center gap-1.5 rounded-full border border-white/10 bg-slate-950/70 p-1.5 backdrop-blur-md">
+      <div className="glass-panel pointer-events-auto absolute top-24 left-3 z-20 flex flex-wrap items-center gap-1 rounded-xl p-1">
         {PRESET_OPTIONS.map((opt) => (
           <button
             key={opt.id}
             type="button"
             onClick={() => setPreset(opt.id)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+            className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
               preset === opt.id
                 ? 'bg-cyan-400/20 text-cyan-200 ring-1 ring-cyan-400/50'
                 : 'text-slate-300 hover:bg-white/5 hover:text-white'
             }`}
           >
-            {opt.label}
+            {t(language, opt.key)}
           </button>
         ))}
         <button
           type="button"
           onClick={() => setVisualMode('globe')}
-          className="ml-1 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white hover:bg-white/20"
+          className="ml-1 rounded-lg bg-white/10 px-2.5 py-1 text-xs font-semibold text-white hover:bg-white/20"
         >
-          Back to Globe
+          {t(language, 'immersive.backToGlobe')}
         </button>
       </div>
     </div>

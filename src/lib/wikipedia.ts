@@ -13,12 +13,18 @@ async function fetchWikiSummary(title: string, lang: LanguageCode): Promise<{
 } | null> {
   try {
     const encoded = encodeURIComponent(title.replace(/ /g, '_'));
-    const res = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encoded}`);
+    const headers: Record<string, string> =
+      lang === 'zh' ? { 'Accept-Language': 'zh-CN,zh-Hans;q=0.9,zh;q=0.8' } : {};
+    const res = await fetch(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encoded}`, {
+      headers,
+    });
     if (!res.ok) return null;
     const data = await res.json();
     if (data.type === 'disambiguation' || !data.extract) return null;
+    const rawDisplay = data.titles?.display || data.displaytitle || data.title || title;
+    const cleanTitle = String(rawDisplay).replace(/<[^>]*>/g, '').trim();
     return {
-      title: data.title,
+      title: cleanTitle || data.title,
       description: data.description,
       extract: data.extract,
       articleUrl:
@@ -43,6 +49,9 @@ async function fetchGeoTitle(lat: number, lng: number, lang: LanguageCode): Prom
       format: 'json',
       origin: '*',
     });
+    if (lang === 'zh') {
+      params.set('variant', 'zh-cn');
+    }
     const res = await fetch(`https://${lang}.wikipedia.org/w/api.php?${params}`);
     if (!res.ok) return null;
     const data = await res.json();

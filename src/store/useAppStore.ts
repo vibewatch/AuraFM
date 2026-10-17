@@ -6,6 +6,7 @@ import {
   FlightArc,
   GlobeViewMode,
   ImmersivePreset,
+  InspectorTab,
   LanguageCode,
   MetaData,
   PlaceInfo,
@@ -66,7 +67,10 @@ function readPersistedSettings(): PersistedSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (!raw) return defaults;
-    return { ...defaults, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    const validLang: LanguageCode =
+      parsed.language === 'zh' || parsed.language === 'en' ? parsed.language : 'en';
+    return { ...defaults, ...parsed, language: validLang };
   } catch {
     return defaults;
   }
@@ -129,13 +133,15 @@ export interface AppState extends PersistedSettings, PersistedLibrary {
   } | null;
   flightArc: FlightArc | null;
 
-  // Drawers & Modals
+  // Drawers & Inspector Rail
   selectedCountryCode: string | null;
   spotStations: StationSummary[] | null;
   searchDrawerStations: { title: string; stations: StationSummary[] } | null;
   libraryOpen: boolean;
   libraryTab: 'favorites' | 'recent';
   settingsOpen: boolean;
+  inspectorOpen: boolean;
+  inspectorTab: InspectorTab;
 
   // Wikipedia Place Explorer
   placeInfo: PlaceInfo | null;
@@ -170,6 +176,7 @@ export interface AppState extends PersistedSettings, PersistedLibrary {
   setLibraryOpen: (open: boolean, tab?: 'favorites' | 'recent') => void;
   setSettingsOpen: (open: boolean) => void;
   setPlaceModalOpen: (open: boolean) => void;
+  setInspectorOpen: (open: boolean, tab?: InspectorTab) => void;
 
   // Settings actions
   setLanguage: (lang: LanguageCode) => void;
@@ -240,6 +247,8 @@ export const useAppStore = create<AppState>((set, get) => {
     libraryOpen: false,
     libraryTab: 'favorites',
     settingsOpen: false,
+    inspectorOpen: false,
+    inspectorTab: 'place',
 
     placeInfo: null,
     placeModalOpen: false,
@@ -364,7 +373,11 @@ export const useAppStore = create<AppState>((set, get) => {
       // Load Wikipedia Place Explorer asynchronously
       loadPlaceInfo(full, get().language).then((info) => {
         if (get().currentStation?.id === full.id) {
-          set({ placeInfo: info });
+          set((s) => ({
+            placeInfo: info,
+            inspectorOpen: true,
+            inspectorTab: s.inspectorTab === 'directory' && s.inspectorOpen ? 'directory' : 'place',
+          }));
         }
       });
     },
@@ -500,6 +513,8 @@ export const useAppStore = create<AppState>((set, get) => {
         selectedCountryCode: cc,
         spotStations: null,
         searchDrawerStations: null,
+        inspectorOpen: Boolean(cc),
+        inspectorTab: 'directory',
       }),
 
     setSpotStations: (stations) =>
@@ -507,6 +522,8 @@ export const useAppStore = create<AppState>((set, get) => {
         spotStations: stations,
         selectedCountryCode: null,
         searchDrawerStations: null,
+        inspectorOpen: Boolean(stations && stations.length > 0),
+        inspectorTab: 'directory',
       }),
 
     setSearchDrawerStations: (payload) =>
@@ -514,12 +531,16 @@ export const useAppStore = create<AppState>((set, get) => {
         searchDrawerStations: payload,
         selectedCountryCode: null,
         spotStations: null,
+        inspectorOpen: Boolean(payload),
+        inspectorTab: 'directory',
       }),
 
     setLibraryOpen: (open, tab) =>
       set((s) => ({
         libraryOpen: open,
         libraryTab: tab ?? s.libraryTab,
+        inspectorOpen: open,
+        inspectorTab: 'library',
         settingsOpen: open ? false : s.settingsOpen,
       })),
 
@@ -529,7 +550,19 @@ export const useAppStore = create<AppState>((set, get) => {
         libraryOpen: open ? false : s.libraryOpen,
       })),
 
-    setPlaceModalOpen: (open) => set({ placeModalOpen: open }),
+    setPlaceModalOpen: (open) =>
+      set({
+        placeModalOpen: open,
+        inspectorOpen: open ? true : get().inspectorOpen,
+        inspectorTab: open ? 'place' : get().inspectorTab,
+      }),
+
+    setInspectorOpen: (open, tab) =>
+      set((s) => ({
+        inspectorOpen: open,
+        inspectorTab: tab ?? s.inspectorTab,
+        libraryOpen: open && (tab ?? s.inspectorTab) === 'library',
+      })),
 
     setLanguage: (language) => {
       set({ language });

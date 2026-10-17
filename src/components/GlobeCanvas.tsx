@@ -909,10 +909,10 @@ export const GlobeCanvas: React.FC = () => {
               transform: `translate3d(${b.x}px, ${b.y}px, 0) translate(-50%, -50%)`,
             }}
             title={`${getCountryName(b.countryCode, language)}: ${b.count.toLocaleString()} stations`}
-            className="pointer-events-auto absolute top-0 left-0 flex items-center gap-1 rounded-full border border-cyan-300/40 bg-slate-950/80 px-2 py-0.5 text-[11px] font-semibold text-cyan-200 shadow-lg backdrop-blur-sm transition hover:scale-110 hover:border-cyan-300 hover:bg-cyan-950/90 hover:text-white"
+            className="pointer-events-auto absolute top-0 left-0 flex items-center gap-1 rounded-md border border-cyan-400/35 bg-slate-950/85 px-1.5 py-0.5 text-[11px] font-semibold text-cyan-200 shadow-lg backdrop-blur-sm transition hover:scale-110 hover:border-cyan-300 hover:bg-cyan-950/90 hover:text-white"
           >
             <span>{countryCodeToFlag(b.countryCode)}</span>
-            <span>{b.count.toLocaleString()}</span>
+            <span className="font-mono-tech">{b.count.toLocaleString()}</span>
           </button>
         ))}
       </div>

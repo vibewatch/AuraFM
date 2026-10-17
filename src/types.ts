@@ -1,9 +1,10 @@
-export type LanguageCode = 'en' | 'pt' | 'es';
+export type LanguageCode = 'en' | 'zh';
 export type GlobeViewMode = 'realistic' | 'minimal';
 export type VisualMode = 'globe' | 'immersive';
 export type ImmersivePreset = 'waves' | 'dusk' | 'ember' | 'aurora' | 'sculpture';
 export type QualityTier = 'auto' | 'low' | 'medium' | 'high';
 export type PlaybackStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'error';
+export type InspectorTab = 'place' | 'directory' | 'library';
 
 export interface MetaData {
   v: number;

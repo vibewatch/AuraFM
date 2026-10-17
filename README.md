@@ -80,7 +80,24 @@ All 2D presets apply **Jimenez Interleaved Gradient Noise (`ign`)** weighted by 
 
 ---
 
-## Part 2: Running & Deploying This Clone
+## Part 2: Custom Orbital Telemetry UI & Bilingual (`简体中文` / `EN`) Design
+
+Instead of copying GeoRadios's floating pills and blocking center modal, this project implements a bespoke **Orbital Telemetry & Studio Deck** interface engineered for high information density:
+
+- **Condensed Technical Typography**:
+  - Uses **Barlow Semi Condensed** + **Noto Sans SC** for compact, high-legibility labels across Latin and CJK scripts, paired with **JetBrains Mono** (`tabular-nums`) for geographical coordinates (`38.72°N 009.14°W`), live UTC/local clocks, bitrate/codec badges, and station indices.
+- **Unified Top Orbital Command Bar (`src/components/HeaderSearch.tsx`)**:
+  - Integrates live station/country counters, a real-time UTC clock, an Omnibox search palette (`/` or `⌘K`) across stations/countries/genres/artists, inline segmented switches (`SAT | VEC`, `3D Globe | Shader Studio`, `FM` tuning static, 1-click `中文 | EN` switcher, `Saved / 电台库`), and a 1-click Quick Genre filter strip.
+- **Non-Blocking Right-Hand Studio Inspector Rail (`src/components/Overlays.tsx`)**:
+  - Replaces blocking center modals with a persistent 3-tab dock (`Signal & Place / 信号与人文`, `Directory / 频段名录`, `Saved / 收藏与足迹`) featuring a real-time **24-band HTML5 Canvas audio spectrum analyzer**, 12-column station telemetry grid, inline Wikipedia Destination Briefing with Wikimedia Commons photo filmstrip, and a tabular numbered station directory.
+- **Precision Bottom Studio Transport Bar (`src/components/PlayerDock.tsx`)**:
+  - Compact studio transport deck with live status LED, mini spectrum bars, coordinate/time/codec telemetry, `Prev / Play / Next Nearest / Random Hop (随机漫游)`, and quick controls.
+- **Simplified Chinese (`简体中文`) & English Localization (`src/lib/i18n.ts`, `src/lib/wikipedia.ts`)**:
+  - Full UI localization in Simplified Chinese (`zh`) and English (`en`), including `Intl.DisplayNames` country names and `zh-CN` Wikipedia REST variant headers (`Accept-Language: zh-CN,zh-Hans`).
+
+---
+
+## Part 3: Running & Deploying This Clone
 
 ### Local Development
 
