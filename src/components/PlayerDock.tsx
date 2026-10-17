@@ -1,10 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
-  ChevronDown,
-  ChevronUp,
   Compass,
   Dices,
-  ExternalLink,
   Loader2,
   Pause,
   Play,
@@ -19,7 +16,6 @@ import {
 import { useAppStore } from '../store/useAppStore';
 import {
   countryCodeToFlag,
-  formatCoords,
   formatStationLocalTime,
   getCountryName,
   t,
@@ -32,9 +28,9 @@ export const PlayerDock: React.FC = () => {
   const historyBackStack = useAppStore((s) => s.historyBackStack);
   const volume = useAppStore((s) => s.volume);
   const muted = useAppStore((s) => s.muted);
-  const playerMinimized = useAppStore((s) => s.playerMinimized);
   const language = useAppStore((s) => s.language);
   const favorites = useAppStore((s) => s.favorites);
+  const inspectorOpen = useAppStore((s) => s.inspectorOpen);
 
   const togglePlayPause = useAppStore((s) => s.togglePlayPause);
   const playPrevious = useAppStore((s) => s.playPrevious);
@@ -42,16 +38,14 @@ export const PlayerDock: React.FC = () => {
   const playSurpriseMe = useAppStore((s) => s.playSurpriseMe);
   const locateCurrentStation = useAppStore((s) => s.locateCurrentStation);
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
-  const addFilterChip = useAppStore((s) => s.addFilterChip);
   const setVolume = useAppStore((s) => s.setVolume);
   const toggleMute = useAppStore((s) => s.toggleMute);
-  const setPlayerMinimized = useAppStore((s) => s.setPlayerMinimized);
   const setInspectorOpen = useAppStore((s) => s.setInspectorOpen);
 
   const [copied, setCopied] = useState(false);
   const [diceRolling, setDiceRolling] = useState(false);
   const [now, setNow] = useState(() => new Date());
-  const [bars, setBars] = useState<number[]>([0.2, 0.35, 0.25, 0.4, 0.3]);
+  const [bars, setBars] = useState<number[]>([0.2, 0.35, 0.25, 0.4]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 30000);
@@ -60,18 +54,17 @@ export const PlayerDock: React.FC = () => {
 
   useEffect(() => {
     if (playbackStatus !== 'playing') {
-      setBars([0.15, 0.15, 0.15, 0.15, 0.15]);
+      setBars([0.18, 0.18, 0.18, 0.18]);
       return;
     }
     const id = window.setInterval(() => {
       const tSec = performance.now() / 1000;
       const b = audioEngine.getAudioBands(tSec);
       setBars([
-        Math.min(1, Math.max(0.15, b.bass * 1.1)),
-        Math.min(1, Math.max(0.15, (b.bass + b.mid) * 0.6)),
-        Math.min(1, Math.max(0.15, b.mid * 1.15)),
-        Math.min(1, Math.max(0.15, (b.mid + b.high) * 0.65)),
-        Math.min(1, Math.max(0.15, b.high * 1.25 + b.pulse * 0.3)),
+        Math.min(1, Math.max(0.18, b.bass * 1.15)),
+        Math.min(1, Math.max(0.18, (b.bass + b.mid) * 0.65)),
+        Math.min(1, Math.max(0.18, b.mid * 1.2)),
+        Math.min(1, Math.max(0.18, b.high * 1.25 + b.pulse * 0.3)),
       ]);
     }, 90);
     return () => window.clearInterval(id);
@@ -99,16 +92,18 @@ export const PlayerDock: React.FC = () => {
 
   if (!currentStation) {
     return (
-      <div className="pointer-events-none fixed inset-x-0 bottom-4 z-30 flex justify-center px-3">
-        <div className="glass-panel pointer-events-auto flex items-center gap-3 rounded-xl py-2 pr-2.5 pl-3.5">
-          <Radio className="h-4 w-4 shrink-0 text-cyan-400 animate-pulse" />
-          <span className="text-xs font-medium text-slate-200">
-            {t(language, 'player.idleHint')}
-          </span>
+      <div className="pointer-events-none fixed inset-x-0 bottom-6 z-30 flex justify-center px-4">
+        <div className="glass-pill pointer-events-auto flex items-center gap-4 rounded-full py-2 pr-2.5 pl-5">
+          <div className="flex items-center gap-2.5">
+            <Radio className="h-4 w-4 shrink-0 text-cyan-400 animate-pulse" />
+            <span className="text-[13px] font-medium text-slate-200">
+              {t(language, 'player.idleHint')}
+            </span>
+          </div>
           <button
             type="button"
             onClick={handleSurprise}
-            className="flex items-center gap-1.5 rounded-lg bg-cyan-400 px-3 py-1.5 text-xs font-bold text-slate-950 shadow transition hover:bg-cyan-300"
+            className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-semibold text-slate-950 shadow-lg transition hover:scale-105 hover:bg-cyan-100"
           >
             <Dices className={`h-3.5 w-3.5 ${diceRolling ? 'animate-spin' : ''}`} />
             <span>{t(language, 'player.SurpriseMe')}</span>
@@ -118,48 +113,16 @@ export const PlayerDock: React.FC = () => {
     );
   }
 
-  if (playerMinimized) {
-    return (
-      <div className="pointer-events-none fixed left-3 bottom-3 z-30">
-        <div className="glass-panel pointer-events-auto flex items-center gap-2 rounded-xl py-1.5 pr-2 pl-2.5">
-          <button
-            type="button"
-            onClick={togglePlayPause}
-            className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-400 text-slate-950"
-          >
-            {playbackStatus === 'loading' ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : playbackStatus === 'playing' ? (
-              <Pause className="h-3.5 w-3.5 fill-current" />
-            ) : (
-              <Play className="h-3.5 w-3.5 fill-current ml-0.5" />
-            )}
-          </button>
-          <div className="max-w-[180px] truncate text-xs font-bold text-white">
-            {currentStation.name}
-          </div>
-          <button
-            type="button"
-            onClick={() => setPlayerMinimized(false)}
-            className="rounded-lg p-1 text-slate-400 hover:bg-white/10 hover:text-white"
-            title={t(language, 'player.expand')}
-          >
-            <ChevronUp className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <footer className="pointer-events-none fixed inset-x-3 bottom-3 z-30 flex justify-center">
-      <div className="glass-panel pointer-events-auto flex w-full max-w-4xl flex-wrap items-center justify-between gap-3 rounded-xl px-3.5 py-2.5">
-        {/* Left: Station Identity & High-Density Telemetry */}
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+    <footer className="pointer-events-none fixed inset-x-4 bottom-6 z-30 flex justify-center">
+      <div className="glass-pill pointer-events-auto flex w-full max-w-[680px] items-center justify-between gap-4 rounded-full px-4 py-2.5">
+        {/* Left: Sonic Vinyl Avatar & Clean 2-Line Station Info */}
+        <div className="flex min-w-0 flex-1 items-center gap-3.5">
           <button
             type="button"
-            onClick={() => setInspectorOpen(true, 'place')}
-            className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-slate-900"
+            onClick={locateCurrentStation}
+            title={t(language, 'player.locate')}
+            className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-slate-900 shadow-inner transition hover:scale-105"
           >
             {currentStation.favicon ? (
               <img
@@ -171,14 +134,14 @@ export const PlayerDock: React.FC = () => {
                 }}
               />
             ) : (
-              <Radio className="h-4 w-4 text-cyan-400" />
+              <Radio className="h-5 w-5 text-cyan-300" />
             )}
-            <div className="pointer-events-none absolute inset-x-1 bottom-0.5 flex h-2.5 items-end justify-center gap-0.5">
+            <div className="pointer-events-none absolute inset-x-2 bottom-1 flex h-2.5 items-end justify-center gap-0.5">
               {bars.map((h, idx) => (
                 <span
                   key={idx}
                   style={{ height: `${Math.round(h * 100)}%` }}
-                  className="w-0.5 rounded-full bg-cyan-400 transition-all duration-75"
+                  className="w-0.5 rounded-full bg-cyan-300 transition-all duration-75"
                 />
               ))}
             </div>
@@ -189,94 +152,47 @@ export const PlayerDock: React.FC = () => {
               <span
                 className={`h-2 w-2 shrink-0 rounded-full ${
                   playbackStatus === 'playing'
-                    ? 'bg-emerald-400 shadow-[0_0_8px_#4ade80]'
+                    ? 'bg-emerald-400 shadow-[0_0_10px_#34d399]'
                     : playbackStatus === 'loading'
                     ? 'bg-cyan-400 animate-ping'
                     : playbackStatus === 'error'
                     ? 'bg-rose-500'
-                    : 'bg-slate-500'
+                    : 'bg-amber-400'
                 }`}
               />
-              <h2 className="truncate font-condensed text-sm font-bold tracking-tight text-white">
+              <h2 className="truncate text-[15px] font-semibold text-white">
                 {currentStation.name}
               </h2>
-              {currentStation.homepage && (
-                <a
-                  href={currentStation.homepage}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 text-slate-400 hover:text-cyan-300"
-                  title="Station homepage"
-                >
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              )}
             </div>
 
-            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-slate-300">
-              <span className="font-medium">
+            <div className="mt-0.5 flex items-center gap-2 text-xs text-slate-300/90 truncate">
+              <span className="truncate">
                 {countryCodeToFlag(currentStation.countryCode)}{' '}
-                {currentStation.region ? `${currentStation.region}, ` : ''}
+                {currentStation.region ? `${currentStation.region} · ` : ''}
                 {getCountryName(currentStation.countryCode, language)}
               </span>
-              <span className="font-mono-tech text-[10px] text-slate-400">
-                {formatCoords(currentStation.lat, currentStation.lng)}
-              </span>
               {localTime && (
-                <span className="font-mono-tech text-[10px] text-cyan-300">
-                  {localTime.isNight ? '🌙' : '☀️'} {localTime.formatted}
+                <span className="hidden sm:inline font-mono-tech text-[11px] text-slate-400">
+                  · {localTime.isNight ? '🌙' : '☀️'} {localTime.formatted}
                 </span>
               )}
-              {currentStation.codec && (
-                <span className="hidden md:inline rounded bg-white/5 px-1.5 py-0.2 font-mono-tech text-[10px] text-slate-400">
-                  {currentStation.codec}
-                  {currentStation.bitrate ? ` ${currentStation.bitrate}k` : ''}
+              {currentStation.tags[0] && (
+                <span className="hidden md:inline rounded-full bg-white/8 px-2 py-0.2 text-[11px] text-cyan-200/90">
+                  {currentStation.tags[0]}
                 </span>
               )}
             </div>
-
-            {playbackStatus === 'loading' ? (
-              <div className="mt-0.5 font-mono-tech text-[10px] font-semibold text-cyan-300">
-                {t(language, 'player.loading')}
-              </div>
-            ) : playbackStatus === 'error' ? (
-              <div className="mt-0.5 font-mono-tech text-[10px] font-semibold text-rose-400">
-                {t(language, 'player.error')}
-              </div>
-            ) : (
-              currentStation.tags.length > 0 && (
-                <div className="mt-1 hidden sm:flex flex-wrap gap-1">
-                  {currentStation.tags.slice(0, 4).map((tag) => (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() =>
-                        addFilterChip({
-                          id: `genre:${tag}`,
-                          type: 'genre',
-                          label: tag,
-                          tag,
-                        })
-                      }
-                      className="rounded bg-white/5 px-1.5 py-0.2 font-mono-tech text-[10px] text-slate-300 transition hover:bg-cyan-400/20 hover:text-cyan-200"
-                    >
-                      #{tag}
-                    </button>
-                  ))}
-                </div>
-              )
-            )}
           </div>
         </div>
 
-        {/* Center: Precision Studio Transport Controls */}
+        {/* Center: Sculptural Transport Controls */}
         <div className="flex items-center gap-1.5">
           <button
             type="button"
             disabled={historyBackStack.length === 0}
             onClick={playPrevious}
             title={t(language, 'player.previous')}
-            className="rounded-lg p-1.5 text-slate-300 transition hover:bg-white/10 hover:text-white disabled:opacity-30"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-white disabled:opacity-30"
           >
             <SkipBack className="h-4 w-4" />
           </button>
@@ -289,14 +205,14 @@ export const PlayerDock: React.FC = () => {
                 ? t(language, 'player.pause')
                 : t(language, 'player.play')
             }
-            className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-400 text-slate-950 shadow-[0_0_16px_rgba(34,211,238,0.4)] transition hover:bg-cyan-300"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-slate-950 shadow-[0_0_24px_rgba(34,211,238,0.45)] transition hover:scale-105 hover:bg-cyan-100"
           >
             {playbackStatus === 'loading' ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="h-5 w-5 animate-spin text-slate-900" />
             ) : playbackStatus === 'playing' ? (
-              <Pause className="h-4 w-4 fill-current" />
+              <Pause className="h-5 w-5 fill-current" />
             ) : (
-              <Play className="h-4 w-4 fill-current ml-0.5" />
+              <Play className="h-5 w-5 fill-current ml-0.5" />
             )}
           </button>
 
@@ -304,7 +220,7 @@ export const PlayerDock: React.FC = () => {
             type="button"
             onClick={playNextNearest}
             title={t(language, 'player.next')}
-            className="rounded-lg p-1.5 text-slate-300 transition hover:bg-white/10 hover:text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-white"
           >
             <SkipForward className="h-4 w-4" />
           </button>
@@ -313,26 +229,26 @@ export const PlayerDock: React.FC = () => {
             type="button"
             onClick={handleSurprise}
             title={t(language, 'player.SurpriseMe')}
-            className="ml-1 flex items-center gap-1.5 rounded-lg border border-cyan-400/40 bg-cyan-400/15 px-2.5 py-1.5 text-xs font-bold text-cyan-200 transition hover:bg-cyan-400/25"
+            className="ml-1 flex items-center gap-1.5 rounded-full border border-cyan-400/30 bg-cyan-400/15 px-3.5 py-2 text-xs font-medium text-cyan-200 transition hover:bg-cyan-400/25 hover:text-white"
           >
             <Dices className={`h-3.5 w-3.5 ${diceRolling ? 'animate-spin' : ''}`} />
-            <span>{t(language, 'player.SurpriseMe')}</span>
+            <span className="hidden sm:inline">{t(language, 'player.SurpriseMe')}</span>
           </button>
         </div>
 
-        {/* Right: Utility Deck (Locate, Star, Share, Volume, Collapse) */}
-        <div className="flex items-center gap-1">
-          <div className="hidden md:flex items-center gap-1.5 mr-1">
+        {/* Right: Minimal Utility Icons */}
+        <div className="flex items-center gap-1 border-l border-white/10 pl-3">
+          <div className="hidden lg:flex items-center gap-1.5 mr-1">
             <button
               type="button"
               onClick={toggleMute}
-              className="rounded-lg p-1.5 text-slate-300 hover:bg-white/10 hover:text-white"
+              className="flex h-8 w-8 items-center justify-center rounded-full text-slate-300 hover:bg-white/10 hover:text-white"
               aria-label="Toggle mute"
             >
               {muted || volume === 0 ? (
-                <VolumeX className="h-3.5 w-3.5 text-rose-400" />
+                <VolumeX className="h-4 w-4 text-rose-400" />
               ) : (
-                <Volume2 className="h-3.5 w-3.5" />
+                <Volume2 className="h-4 w-4" />
               )}
             </button>
             <input
@@ -343,46 +259,44 @@ export const PlayerDock: React.FC = () => {
               value={muted ? 0 : volume}
               onChange={(e) => setVolume(Number.parseFloat(e.target.value))}
               aria-label="Volume"
-              className="h-1 w-16 cursor-pointer accent-cyan-400"
+              className="h-1 w-14 cursor-pointer accent-cyan-400"
             />
           </div>
 
           <button
             type="button"
-            onClick={locateCurrentStation}
-            title={t(language, 'player.locate')}
-            className="rounded-lg p-1.5 text-slate-300 transition hover:bg-white/10 hover:text-cyan-300"
-          >
-            <Compass className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
             onClick={() => toggleFavorite(currentStation)}
             title={t(language, 'player.favorite')}
-            className="rounded-lg p-1.5 text-slate-300 transition hover:bg-white/10 hover:text-amber-400"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-amber-400"
           >
             <Star className={`h-4 w-4 ${isFav ? 'fill-amber-400 text-amber-400' : ''}`} />
           </button>
+
           <button
             type="button"
             onClick={handleShare}
             title={t(language, 'player.share')}
-            className="relative rounded-lg p-1.5 text-slate-300 transition hover:bg-white/10 hover:text-white"
+            className="relative flex h-8 w-8 items-center justify-center rounded-full text-slate-300 transition hover:bg-white/10 hover:text-white"
           >
             <Share2 className="h-4 w-4" />
             {copied && (
-              <span className="absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-emerald-400 px-1.5 py-0.5 font-mono-tech text-[10px] font-bold text-slate-950 shadow">
+              <span className="absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-emerald-400 px-2.5 py-0.5 text-[11px] font-semibold text-slate-950 shadow">
                 {t(language, 'player.copied')}
               </span>
             )}
           </button>
+
           <button
             type="button"
-            onClick={() => setPlayerMinimized(true)}
-            title={t(language, 'player.minimize')}
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-white/10 hover:text-white"
+            onClick={() => setInspectorOpen(!inspectorOpen, 'place')}
+            title={language === 'zh' ? '展开/收起城市人文卡片' : 'Toggle Story Card'}
+            className={`flex h-8 w-8 items-center justify-center rounded-full transition ${
+              inspectorOpen
+                ? 'bg-cyan-400/20 text-cyan-200 ring-1 ring-cyan-400/40'
+                : 'text-slate-300 hover:bg-white/10 hover:text-white'
+            }`}
           >
-            <ChevronDown className="h-4 w-4" />
+            <Compass className="h-4 w-4" />
           </button>
         </div>
       </div>

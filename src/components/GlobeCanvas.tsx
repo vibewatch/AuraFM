@@ -9,8 +9,135 @@ import {
   vec3ToLatLng,
 } from '../lib/geo';
 import { getTextureUrl } from '../lib/data';
+import { audioEngine } from '../lib/audio';
 import { countryCodeToFlag, getCountryName } from '../lib/i18n';
-import { StationSummary } from '../types';
+import { ImmersivePreset, StationSummary } from '../types';
+
+const AURA_PALETTES: Record<ImmersivePreset, [string, string, string]> = {
+  waves: ['#22d3ee', '#3b82f6', '#34d399'],      // 星海流光 (Ocean Cyan & Mint)
+  aurora: ['#10b981', '#06b6d4', '#a855f7'],     // 极光幻境 (Emerald, Cyan & Violet)
+  dusk: ['#ec4899', '#6366f1', '#f43f5e'],       // 星云紫韵 (Neon Rose & Indigo)
+  ember: ['#f59e0b', '#fb7185', '#fde047'],      // 日冕金辉 (Solar Gold & Coral)
+  sculpture: ['#2dd4bf', '#e879f9', '#38bdf8'],  // 赛博霓虹 (Cyber Turquoise & Fuchsia)
+};
+
+const PLANETARY_CORONA_VERTEX = /* glsl */ `
+  varying vec2 vPlanePos;
+  void main() {
+    vPlanePos = position.xy;
+    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  }
+`;
+
+const PLANETARY_CORONA_FRAGMENT = /* glsl */ `
+  precision highp float;
+  varying vec2 vPlanePos;
+
+  uniform float uTime;
+  uniform float uCameraDist;
+  uniform float uBass;
+  uniform float uMid;
+  uniform float uHigh;
+  uniform float uPulse;
+  uniform float uPlaying;
+  uniform vec2 uActiveDir;
+  uniform vec3 uColPrimary;
+  uniform vec3 uColSecondary;
+  uniform vec3 uColAccent;
+
+  const float PI = 3.141592653589793;
+  const float TAU = 6.283185307179586;
+
+  void main() {
+    float r = length(vPlanePos);
+    float rLimb = uCameraDist / sqrt(max(0.18, uCameraDist * uCameraDist - 1.0));
+    float d = r - rLimb;
+
+    // Fade smoothly just inside the Earth silhouette so the limb transition is seamless
+    float innerMask = smoothstep(-0.025, 0.003, d);
+    if (innerMask <= 0.001 || d > 0.55) discard;
+
+    float theta = atan(vPlanePos.y, vPlanePos.x);
+    vec2 dir2D = r > 0.0001 ? vPlanePos / r : vec2(1.0, 0.0);
+
+    // Directional focus toward the currently broadcasting station on the globe
+    float stationFocus = 0.5 + 0.5 * dot(dir2D, uActiveDir);
+    float focusBoost = mix(1.0, 0.85 + 0.42 * pow(stationFocus, 2.0), uPlaying);
+
+    // Seamless periodic angular waves around the 360-degree planetary circumference
+    float w1 = sin(theta * 3.0 + uTime * 0.90) * 0.45
+             + cos(theta * 5.0 - uTime * 1.25) * 0.35
+             + sin(theta * 9.0 + uTime * 1.80) * 0.20;
+
+    float w2 = cos(theta * 4.0 - uTime * 1.05) * 0.45
+             + sin(theta * 7.0 + uTime * 1.50) * 0.35
+             + cos(theta * 13.0 - uTime * 2.20) * 0.20;
+
+    float w3 = sin(theta * 6.0 + uTime * 1.35) * 0.50
+             + cos(theta * 11.0 + uTime * 2.05) * 0.30
+             + sin(theta * 17.0 - uTime * 2.70) * 0.20;
+
+    float wHigh = 0.5 + 0.5 * sin(theta * 24.0 + uTime * 2.8 + w1 * 2.0);
+
+    float energyScale = (0.55 + 0.45 * uPlaying) * focusBoost;
+
+    // 1. Soft Atmospheric Horizon Halo hugging the Earth
+    float atmoDecay = exp(-max(d, 0.0) * (10.5 - uBass * 3.0));
+    vec3 atmoCol = mix(uColSecondary, uColPrimary, 0.5 + 0.5 * sin(theta * 2.0 + uTime * 0.45));
+    vec3 color = atmoCol * atmoDecay * (0.34 + uBass * 0.32);
+
+    // 2. Three Intertwined Harmonic Soundwave Strings & Translucent Aurora Veil around the Earth
+    float reach1 = (0.042 + (0.048 + 0.095 * uBass + 0.045 * uMid) * (0.52 + 0.48 * w1)) * energyScale;
+    float reach2 = (0.068 + (0.058 + 0.085 * uMid + 0.065 * uHigh + 0.045 * uPulse) * (0.52 + 0.48 * w2)) * energyScale;
+    float reach3 = (0.095 + (0.065 + 0.075 * uHigh + 0.060 * uBass) * (0.52 + 0.48 * w3)) * energyScale;
+
+    float veil1 = (1.0 - smoothstep(0.0, reach1, max(d, 0.0))) * smoothstep(-0.005, 0.015, d);
+    float string1 = exp(-pow((d - reach1) / 0.0055, 2.0));
+
+    float veil2 = (1.0 - smoothstep(0.0, reach2, max(d, 0.0))) * smoothstep(0.0, 0.02, d);
+    float string2 = exp(-pow((d - reach2) / 0.0060, 2.0));
+
+    float string3 = exp(-pow((d - reach3) / 0.0050, 2.0));
+
+    color += uColPrimary * (veil1 * 0.18 + string1 * (0.78 + uBass * 0.55));
+    color += uColAccent * (veil2 * 0.12 + string2 * (0.64 + uMid * 0.55));
+    color += mix(uColSecondary, vec3(1.0), 0.35) * (string3 * (0.48 + uHigh * 0.55));
+
+    // 3. 144 Ultra-Fine Radial Acoustic Needles with Starlight Tips around the Planet
+    float numBars = 144.0;
+    float barPhase = (theta + PI) / TAU * numBars;
+    float barIdx = floor(barPhase);
+    float barLocal = fract(barPhase) - 0.5;
+    float barProfile = exp(-barLocal * barLocal * 105.0);
+
+    float barSpectrum =
+      0.28 +
+      0.35 * (0.5 + 0.5 * sin(barIdx * 0.42 + uTime * 2.4)) * (0.40 + uBass * 1.10) +
+      0.22 * (0.5 + 0.5 * cos(barIdx * 0.91 - uTime * 3.1)) * (0.35 + uMid * 1.15) +
+      0.15 * wHigh * (0.30 + uHigh * 1.25);
+
+    float barHeight = (0.028 + barSpectrum * (0.095 + 0.095 * uPlaying + 0.045 * uPulse)) * focusBoost;
+    float barMask = barProfile * smoothstep(0.004, 0.016, d) * (1.0 - smoothstep(barHeight * 0.75, barHeight, d));
+    float barTip = barProfile * exp(-pow((d - barHeight) / 0.0065, 2.0)) * (0.55 + 0.65 * uPlaying);
+
+    vec3 barCol = mix(uColPrimary, uColAccent, clamp(d / max(0.05, barHeight), 0.0, 1.0));
+    color += barCol * barMask * (0.36 + 0.38 * uPlaying);
+    color += mix(uColAccent, vec3(1.0), 0.55) * barTip * 0.72;
+
+    // 4. Subtle Concentric Planetary Soundwave Ripples
+    float rippleWave = 0.5 + 0.5 * sin(max(d, 0.0) * 58.0 - uTime * 3.0 + w1 * 1.2);
+    float rippleEnvelope = smoothstep(0.02, 0.07, d) * exp(-max(d, 0.0) * 9.5);
+    color += mix(uColSecondary, uColAccent, 0.5) * pow(rippleWave, 5.0) * rippleEnvelope * (0.16 + 0.28 * uBass + 0.22 * uPulse);
+
+    // Filmic tone-mapping & outer fade so colors remain jewel-like and never clip
+    float outerFade = 1.0 - smoothstep(0.24, 0.48, d);
+    color *= innerMask * outerFade;
+    color = color / (1.0 + color * 0.48);
+
+    float alpha = clamp(length(color) * 0.92, 0.0, 0.88);
+    gl_FragColor = vec4(color, alpha);
+  }
+`;
 
 const EARTH_VERTEX = /* glsl */ `
   varying vec3 vNormal;
@@ -186,6 +313,8 @@ export const GlobeCanvas: React.FC = () => {
   const cameraTarget = useAppStore((s) => s.cameraTarget);
   const flightArc = useAppStore((s) => s.flightArc);
   const language = useAppStore((s) => s.language);
+  const immersivePreset = useAppStore((s) => s.immersivePreset);
+  const playbackStatus = useAppStore((s) => s.playbackStatus);
 
   const selectStation = useAppStore((s) => s.selectStation);
   const setSpotStations = useAppStore((s) => s.setSpotStations);
@@ -209,6 +338,8 @@ export const GlobeCanvas: React.FC = () => {
     favorites,
     filteredStationIds,
     language,
+    immersivePreset,
+    playbackStatus,
     hoveredStationIdx: -1,
   });
   stateRef.current = {
@@ -221,6 +352,8 @@ export const GlobeCanvas: React.FC = () => {
     favorites,
     filteredStationIds,
     language,
+    immersivePreset,
+    playbackStatus,
   };
 
   // Three.js object refs
@@ -264,7 +397,7 @@ export const GlobeCanvas: React.FC = () => {
     cameraSpherical: {
       lat: 22,
       lng: -15,
-      distance: 2.75,
+      distance: 3.35,
       velLat: 0,
       velLng: 0.04,
     },
@@ -366,6 +499,7 @@ export const GlobeCanvas: React.FC = () => {
       extensions: { derivatives: true } as any,
     });
     const earthMesh = new THREE.Mesh(earthGeo, earthMat);
+    earthMesh.renderOrder = 1;
     scene.add(earthMesh);
 
     // BackSide Fresnel atmosphere halo
@@ -378,7 +512,61 @@ export const GlobeCanvas: React.FC = () => {
       blending: THREE.AdditiveBlending,
       depthWrite: false,
     });
-    scene.add(new THREE.Mesh(atmoGeo, atmoMat));
+    const atmoMesh = new THREE.Mesh(atmoGeo, atmoMat);
+    atmoMesh.renderOrder = 2;
+    scene.add(atmoMesh);
+
+    // 360-degree Planetary Sonic Corona around the Earth's outer perimeter
+    const initColors = AURA_PALETTES[stateRef.current.immersivePreset] || AURA_PALETTES.waves;
+    const coronaUniforms = {
+      uTime: { value: 0 },
+      uCameraDist: { value: 2.75 },
+      uBass: { value: 0.25 },
+      uMid: { value: 0.22 },
+      uHigh: { value: 0.18 },
+      uPulse: { value: 0.1 },
+      uPlaying: { value: 0.35 },
+      uActiveDir: { value: new THREE.Vector2(0.8, 0.6) },
+      uColPrimary: { value: new THREE.Color(initColors[0]) },
+      uColSecondary: { value: new THREE.Color(initColors[1]) },
+      uColAccent: { value: new THREE.Color(initColors[2]) },
+    };
+    const coronaGeo = new THREE.PlaneGeometry(4.8, 4.8);
+    const coronaMat = new THREE.ShaderMaterial({
+      vertexShader: PLANETARY_CORONA_VERTEX,
+      fragmentShader: PLANETARY_CORONA_FRAGMENT,
+      uniforms: coronaUniforms,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false,
+    });
+    const coronaMesh = new THREE.Mesh(coronaGeo, coronaMat);
+    coronaMesh.renderOrder = -1;
+    scene.add(coronaMesh);
+
+    // 3D Orbital Soundwave Rings encircling the planet in 3D space
+    const ORBIT_SEGMENTS = 180;
+    const createOrbitalRing = (colorHex: string, opacity: number, tiltX: number, tiltZ: number) => {
+      const positions = new Float32Array(ORBIT_SEGMENTS * 3);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const mat = new THREE.LineBasicMaterial({
+        color: colorHex,
+        transparent: true,
+        opacity,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+      });
+      const loop = new THREE.LineLoop(geo, mat);
+      loop.rotation.x = tiltX;
+      loop.rotation.z = tiltZ;
+      loop.renderOrder = 3;
+      scene.add(loop);
+      return { loop, geo, mat };
+    };
+    const orbitalRingA = createOrbitalRing(initColors[0], 0.42, 0.36, 0.22);
+    const orbitalRingB = createOrbitalRing(initColors[2], 0.28, -0.42, -0.28);
 
     // Country borders group
     const borderGroup = new THREE.Group();
@@ -675,6 +863,79 @@ export const GlobeCanvas: React.FC = () => {
       camera.lookAt(0, 0, 0);
       stationUniforms.uCameraDist.value = cs.distance;
 
+      // Orient Planetary Sonic Corona to always face the camera around the Earth's silhouette
+      coronaMesh.quaternion.copy(camera.quaternion);
+      const timeSec = now * 0.001;
+      coronaUniforms.uTime.value = timeSec;
+      coronaUniforms.uCameraDist.value = cs.distance;
+
+      // Sample real-time audio bands + organic planetary breathing baseline
+      const bands = audioEngine.getAudioBands(timeSec);
+      const isActiveAudio =
+        stateRef.current.playbackStatus === 'playing' ||
+        stateRef.current.playbackStatus === 'loading' ||
+        Boolean(stateRef.current.currentStation);
+
+      const ambientBass = 0.24 + 0.12 * Math.sin(timeSec * 1.35) + 0.08 * Math.cos(timeSec * 2.1);
+      const ambientMid = 0.20 + 0.11 * Math.cos(timeSec * 1.75) + 0.07 * Math.sin(timeSec * 2.9);
+      const ambientHigh = 0.16 + 0.09 * Math.sin(timeSec * 2.6);
+      const ambientPulse = 0.12 + 0.10 * Math.pow(0.5 + 0.5 * Math.sin(timeSec * 1.8), 3);
+
+      const targetBass = Math.max(ambientBass, bands.bass * 1.25);
+      const targetMid = Math.max(ambientMid, bands.mid * 1.25);
+      const targetHigh = Math.max(ambientHigh, bands.high * 1.25);
+      const targetPulse = Math.max(ambientPulse, bands.pulse * 1.15);
+      const targetPlaying = isActiveAudio ? 0.92 : 0.55;
+
+      coronaUniforms.uBass.value += (targetBass - coronaUniforms.uBass.value) * 0.16;
+      coronaUniforms.uMid.value += (targetMid - coronaUniforms.uMid.value) * 0.16;
+      coronaUniforms.uHigh.value += (targetHigh - coronaUniforms.uHigh.value) * 0.18;
+      coronaUniforms.uPulse.value += (targetPulse - coronaUniforms.uPulse.value) * 0.20;
+      coronaUniforms.uPlaying.value += (targetPlaying - coronaUniforms.uPlaying.value) * 0.08;
+
+      // Smoothly transition Planetary Aura Palette when user cycles themes
+      const paletteHex = AURA_PALETTES[stateRef.current.immersivePreset] || AURA_PALETTES.waves;
+      coronaUniforms.uColPrimary.value.lerp(new THREE.Color(paletteHex[0]), 0.08);
+      coronaUniforms.uColSecondary.value.lerp(new THREE.Color(paletteHex[1]), 0.08);
+      coronaUniforms.uColAccent.value.lerp(new THREE.Color(paletteHex[2]), 0.08);
+
+      // Update 3D Orbital Soundwave Rings around the globe
+      orbitalRingA.mat.color.copy(coronaUniforms.uColPrimary.value);
+      orbitalRingB.mat.color.copy(coronaUniforms.uColAccent.value);
+      orbitalRingA.loop.rotation.y = timeSec * 0.14;
+      orbitalRingB.loop.rotation.y = -timeSec * 0.11;
+
+      const updateRingGeometry = (
+        geo: THREE.BufferGeometry,
+        baseRadius: number,
+        freqA: number,
+        freqB: number,
+        ampScale: number,
+        phaseSign: number
+      ) => {
+        const posAttr = geo.attributes.position as THREE.BufferAttribute;
+        const arr = posAttr.array as Float32Array;
+        const bVal = coronaUniforms.uBass.value;
+        const mVal = coronaUniforms.uMid.value;
+        const hVal = coronaUniforms.uHigh.value;
+        for (let i = 0; i < ORBIT_SEGMENTS; i++) {
+          const a = (i / ORBIT_SEGMENTS) * Math.PI * 2;
+          const wave =
+            Math.sin(a * freqA + timeSec * 2.2 * phaseSign) * bVal * 0.042 +
+            Math.cos(a * freqB - timeSec * 3.1 * phaseSign) * mVal * 0.032 +
+            Math.sin(a * 16 + timeSec * 4.5) * hVal * 0.018;
+          const r = baseRadius + wave * ampScale;
+          const yWave =
+            Math.cos(a * (freqA + 1) - timeSec * 1.9 * phaseSign) * (bVal * 0.035 + mVal * 0.025);
+          arr[i * 3] = Math.cos(a) * r;
+          arr[i * 3 + 1] = yWave;
+          arr[i * 3 + 2] = Math.sin(a) * r;
+        }
+        posAttr.needsUpdate = true;
+      };
+      updateRingGeometry(orbitalRingA.geo, 1.135, 5, 9, 1.0, 1);
+      updateRingGeometry(orbitalRingB.geo, 1.205, 6, 11, 1.15, -1);
+
       // Smooth Realistic / Minimal transition
       const targetMix = stateRef.current.globeView === 'realistic' ? 1.0 : 0.0;
       earthUniforms.uLandMix.value += (targetMix - earthUniforms.uLandMix.value) * 0.12;
@@ -710,7 +971,7 @@ export const GlobeCanvas: React.FC = () => {
         prevHoveredIdx = nextIdx;
       }
 
-      // Update active station pulsing beacon
+      // Update active station pulsing beacon & directional aura focus
       const curSt = stateRef.current.currentStation;
       if (curSt && (curSt.lat !== 0 || curSt.lng !== 0)) {
         selectionGroup.visible = true;
@@ -718,11 +979,18 @@ export const GlobeCanvas: React.FC = () => {
         selectionGroup.position.set(pos[0], pos[1], pos[2]);
         selectionGroup.lookAt(pos[0] * 2, pos[1] * 2, pos[2] * 2);
         const pulse = (now * 0.0012) % 1;
-        const scale = (1 + pulse * 2.2) * (cs.distance / 2.2);
+        const scale = (1 + pulse * 2.4 + coronaUniforms.uBass.value * 0.9) * (cs.distance / 2.2);
         ringMesh.scale.set(scale, scale, 1);
-        ringMat.opacity = (1 - pulse) * 0.85;
+        ringMat.opacity = (1 - pulse) * 0.88;
         const coreScale = cs.distance / 2.2;
         coreMesh.scale.set(coreScale, coreScale, 1);
+
+        // Project active station direction onto camera plane for directional aura surge
+        const worldVec = new THREE.Vector3(pos[0], pos[1], pos[2]).project(camera);
+        const dirLen = Math.hypot(worldVec.x, worldVec.y);
+        if (dirLen > 0.001) {
+          coronaUniforms.uActiveDir.value.set(worldVec.x / dirLen, worldVec.y / dirLen);
+        }
       } else {
         selectionGroup.visible = false;
       }
@@ -909,10 +1177,10 @@ export const GlobeCanvas: React.FC = () => {
               transform: `translate3d(${b.x}px, ${b.y}px, 0) translate(-50%, -50%)`,
             }}
             title={`${getCountryName(b.countryCode, language)}: ${b.count.toLocaleString()} stations`}
-            className="pointer-events-auto absolute top-0 left-0 flex items-center gap-1 rounded-md border border-cyan-400/35 bg-slate-950/85 px-1.5 py-0.5 text-[11px] font-semibold text-cyan-200 shadow-lg backdrop-blur-sm transition hover:scale-110 hover:border-cyan-300 hover:bg-cyan-950/90 hover:text-white"
+            className="pointer-events-auto absolute top-0 left-0 flex items-center gap-1.5 rounded-full border border-white/15 bg-slate-950/75 px-2.5 py-0.5 text-xs font-medium text-slate-100 shadow-lg backdrop-blur-md transition duration-200 hover:scale-110 hover:border-cyan-300/60 hover:bg-slate-900/95 hover:text-cyan-200"
           >
-            <span>{countryCodeToFlag(b.countryCode)}</span>
-            <span className="font-mono-tech">{b.count.toLocaleString()}</span>
+            <span className="text-xs leading-none">{countryCodeToFlag(b.countryCode)}</span>
+            <span className="font-mono-tech text-[11px] text-cyan-200/95">{b.count.toLocaleString()}</span>
           </button>
         ))}
       </div>
@@ -921,13 +1189,13 @@ export const GlobeCanvas: React.FC = () => {
       {hoveredInfo && (
         <div
           style={{
-            left: Math.min(window.innerWidth - 240, hoveredInfo.x + 14),
-            top: Math.max(16, hoveredInfo.y - 12),
+            left: Math.min(window.innerWidth - 260, hoveredInfo.x + 16),
+            top: Math.max(16, hoveredInfo.y - 14),
           }}
-          className="pointer-events-none fixed z-30 max-w-[230px] rounded-xl border border-white/10 bg-slate-950/90 px-3 py-2 shadow-xl backdrop-blur-md"
+          className="pointer-events-none fixed z-30 max-w-[240px] rounded-2xl border border-white/12 bg-slate-950/85 px-3.5 py-2.5 shadow-2xl backdrop-blur-xl"
         >
-          <div className="truncate text-xs font-semibold text-white">{hoveredInfo.title}</div>
-          <div className="truncate text-[11px] text-slate-400">{hoveredInfo.subtitle}</div>
+          <div className="truncate text-[13px] font-semibold text-white">{hoveredInfo.title}</div>
+          <div className="mt-0.5 truncate text-xs text-slate-300/85">{hoveredInfo.subtitle}</div>
         </div>
       )}
     </div>

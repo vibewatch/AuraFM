@@ -324,7 +324,7 @@ export const useAppStore = create<AppState>((set, get) => {
           cameraTarget: {
             lat: station.lat,
             lng: station.lng,
-            distance: station.precise ? 1.85 : 2.2,
+            distance: station.precise ? 3.18 : 3.32,
             fullSpin,
             token: Date.now() + Math.random(),
           },
@@ -373,11 +373,9 @@ export const useAppStore = create<AppState>((set, get) => {
       // Load Wikipedia Place Explorer asynchronously
       loadPlaceInfo(full, get().language).then((info) => {
         if (get().currentStation?.id === full.id) {
-          set((s) => ({
+          set({
             placeInfo: info,
-            inspectorOpen: true,
-            inspectorTab: s.inspectorTab === 'directory' && s.inspectorOpen ? 'directory' : 'place',
-          }));
+          });
         }
       });
     },
@@ -451,7 +449,7 @@ export const useAppStore = create<AppState>((set, get) => {
     locateCurrentStation: () => {
       const cur = get().currentStation;
       if (!cur) return;
-      get().flyToCoords(cur.lat, cur.lng, cur.precise ? 1.75 : 2.1, false);
+      get().flyToCoords(cur.lat, cur.lng, cur.precise ? 3.12 : 3.28, false);
     },
 
     flyToCoords: (lat, lng, distance = 2.0, fullSpin = false) => {
