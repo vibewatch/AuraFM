@@ -6,7 +6,7 @@ const RAD2DEG = 180 / Math.PI;
 
 /**
  * Convert geographic latitude/longitude (in degrees) to 3D Cartesian coordinates on a sphere of radius `r`.
- * Matches GeoRadios's exact coordinate convention:
+ * AuraFM spherical coordinate convention:
  * phi = (90 - lat) * DEG2RAD
  * theta = (lng + 180) * DEG2RAD
  * x = -r * sin(phi) * cos(theta)

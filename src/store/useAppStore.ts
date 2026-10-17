@@ -48,8 +48,17 @@ interface PersistedLibrary {
   recent: StationSummary[];
 }
 
-const SETTINGS_STORAGE_KEY = 'georadios:settings:v1';
-const LIBRARY_STORAGE_KEY = 'georadios:library:v1';
+const SETTINGS_STORAGE_KEY = 'aurafm:settings:v1';
+const LIBRARY_STORAGE_KEY = 'aurafm:library:v1';
+
+function trackEvent(eventName: string, params?: Record<string, string | number | boolean>): void {
+  try {
+    const w = window as unknown as { gtag?: (...args: unknown[]) => void };
+    if (typeof w.gtag === 'function') {
+      w.gtag('event', eventName, params || {});
+    }
+  } catch {}
+}
 
 function readPersistedSettings(): PersistedSettings {
   const defaults: PersistedSettings = {
@@ -289,7 +298,7 @@ export const useAppStore = create<AppState>((set, get) => {
           }
         }
       } catch (err) {
-        console.error('Failed to initialize GeoRadios data:', err);
+        console.error('Failed to initialize AuraFM data:', err);
         set({ isLoadingData: false });
       }
     },
@@ -357,6 +366,13 @@ export const useAppStore = create<AppState>((set, get) => {
       // Start audio playback
       audioEngine.playStream(full.url, full.hls);
       reportStationClick(full.uuid);
+      trackEvent('tune_station', {
+        station_id: full.id,
+        station_name: full.name,
+        country_code: full.countryCode,
+        region: full.region || '',
+        full_spin: Boolean(fullSpin),
+      });
 
       // Update MediaSession metadata
       if ('mediaSession' in navigator) {
@@ -364,7 +380,7 @@ export const useAppStore = create<AppState>((set, get) => {
           navigator.mediaSession.metadata = new MediaMetadata({
             title: full.name,
             artist: full.region ? `${full.region} · ${full.countryCode}` : full.countryCode,
-            album: 'AuraFM · 星环电波',
+            album: 'AuraFM Live',
             artwork: full.favicon ? [{ src: full.favicon, sizes: '96x96', type: 'image/png' }] : [],
           });
         } catch {}
@@ -443,6 +459,10 @@ export const useAppStore = create<AppState>((set, get) => {
       const candidates = pool.filter((s) => s.id !== currentStation?.id);
       const list = candidates.length > 0 ? candidates : pool;
       const picked = list[Math.floor(Math.random() * list.length)];
+      trackEvent('random_hop', {
+        station_id: picked.id,
+        country_code: picked.countryCode,
+      });
       get().selectStation(picked, { pushHistory: true, fullSpin: true, flyTo: true });
     },
 
@@ -500,20 +520,29 @@ export const useAppStore = create<AppState>((set, get) => {
         : [station, ...favs];
       set({ favorites: nextFavs });
       savePersistedLibrary({ favorites: nextFavs, recent: get().recent });
+      trackEvent(exists ? 'unfavorite_station' : 'favorite_station', {
+        station_id: station.id,
+        station_name: station.name,
+        country_code: station.countryCode,
+      });
     },
 
     isFavorite: (stationId) => {
       return get().favorites.some((s) => s.id === stationId);
     },
 
-    setSelectedCountryCode: (cc) =>
+    setSelectedCountryCode: (cc) => {
+      if (cc) {
+        trackEvent('select_country', { country_code: cc });
+      }
       set({
         selectedCountryCode: cc,
         spotStations: null,
         searchDrawerStations: null,
         inspectorOpen: Boolean(cc),
         inspectorTab: 'directory',
-      }),
+      });
+    },
 
     setSpotStations: (stations) =>
       set({
@@ -565,6 +594,7 @@ export const useAppStore = create<AppState>((set, get) => {
     setLanguage: (language) => {
       set({ language });
       persistCurrentSettings();
+      trackEvent('change_language', { language });
       const cur = get().currentStation;
       if (cur) {
         loadPlaceInfo(cur, language).then((info) => {
@@ -576,6 +606,7 @@ export const useAppStore = create<AppState>((set, get) => {
     setGlobeView: (globeView) => {
       set({ globeView });
       persistCurrentSettings();
+      trackEvent('change_globe_view', { globe_view: globeView });
     },
 
     setVisualMode: (visualMode) => {

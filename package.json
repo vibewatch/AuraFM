@@ -1,8 +1,8 @@
 {
-  "name": "georadios",
+  "name": "aurafm",
   "private": true,
   "version": "1.0.0",
-  "description": "Spin the globe, tune in to live radio stations around the world — open-source GitHub Pages clone of GeoRadios",
+  "description": "AuraFM — Spin the globe, tune in to live radio stations around the world",
   "type": "module",
   "scripts": {
     "dev": "vite",

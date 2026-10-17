@@ -17,7 +17,7 @@ const API_URL =
 async function main() {
   console.log('Fetching stations from Radio-Browser API...');
   const res = await fetch(API_URL, {
-    headers: { 'User-Agent': 'GeoRadios-Static-Builder/1.0' },
+    headers: { 'User-Agent': 'AuraFM-Static-Builder/1.0' },
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const rawStations = await res.json();

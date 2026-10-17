@@ -224,10 +224,7 @@ export const HeaderSearch: React.FC = () => {
             />
           </span>
           <span className="font-display text-[14px] sm:text-[15px] font-semibold tracking-tight text-white">
-            {language === 'zh' ? '星环电波' : 'AuraFM'}
-          </span>
-          <span className="hidden xl:inline font-mono-tech text-[11px] font-medium text-slate-400">
-            {language === 'zh' ? 'AuraFM' : ''}
+            AuraFM
           </span>
         </div>
 

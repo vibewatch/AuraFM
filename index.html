@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>AuraFM · 星环电波 — 聆听地球的每一次呼吸</title>
+    <title>AuraFM — Spin the globe, hear what's on the radio there</title>
     <meta
       name="description"
       content="Explore 15,998 live radio stations across 205 countries on an interactive 3D Earth globe with real-time day/night terminator, audio-reactive shaders, and Wikipedia place stories."
@@ -25,6 +25,14 @@
       rel="stylesheet"
     />
     <link rel="preconnect" href="https://all.api.radio-browser.info" crossorigin />
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-K5EP03QYVX"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-K5EP03QYVX');
+    </script>
   </head>
   <body class="bg-slate-950 text-slate-100 antialiased selection:bg-cyan-400/30 selection:text-cyan-100 overflow-hidden">
     <div id="root"></div>
