@@ -3,6 +3,8 @@ import {
   Bookmark,
   Disc3,
   Globe2,
+  Loader2,
+  LocateFixed,
   MapPin,
   Music,
   Radio,
@@ -54,8 +56,11 @@ export const HeaderSearch: React.FC = () => {
   const favorites = useAppStore((s) => s.favorites);
   const inspectorOpen = useAppStore((s) => s.inspectorOpen);
   const inspectorTab = useAppStore((s) => s.inspectorTab);
+  const userLocation = useAppStore((s) => s.userLocation);
+  const isLocatingUser = useAppStore((s) => s.isLocatingUser);
 
   const selectStation = useAppStore((s) => s.selectStation);
+  const detectUserLocation = useAppStore((s) => s.detectUserLocation);
   const addFilterChip = useAppStore((s) => s.addFilterChip);
   const removeFilterChip = useAppStore((s) => s.removeFilterChip);
   const clearFilterChips = useAppStore((s) => s.clearFilterChips);
@@ -284,9 +289,34 @@ export const HeaderSearch: React.FC = () => {
               <X className="h-3.5 w-3.5" />
             </button>
           ) : (
-            <kbd className="hidden sm:inline-block rounded-full border border-white/10 bg-white/5 px-2 py-0.5 font-mono-tech text-[11px] text-slate-400">
-              /
-            </kbd>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                data-testid="detect-location-btn"
+                onClick={() => detectUserLocation()}
+                disabled={isLocatingUser}
+                title={t(language, 'player.nearMe')}
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition ${
+                  userLocation
+                    ? 'border border-cyan-400/45 bg-cyan-400/20 text-cyan-200'
+                    : 'border border-white/10 bg-white/6 text-slate-200 hover:border-cyan-400/40 hover:bg-cyan-400/15 hover:text-cyan-200'
+                }`}
+              >
+                {isLocatingUser ? (
+                  <Loader2 className="h-3 w-3 animate-spin text-cyan-300" />
+                ) : (
+                  <LocateFixed className="h-3 w-3 text-cyan-300" />
+                )}
+                <span>
+                  {isLocatingUser
+                    ? t(language, 'player.locating')
+                    : userLocation?.city || (language === 'zh' ? '附近' : 'Near Me')}
+                </span>
+              </button>
+              <kbd className="hidden sm:inline-block rounded-full border border-white/10 bg-white/5 px-2 py-0.5 font-mono-tech text-[11px] text-slate-400">
+                /
+              </kbd>
+            </div>
           )}
         </div>
 

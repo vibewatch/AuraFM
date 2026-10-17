@@ -306,6 +306,7 @@ export const GlobeCanvas: React.FC = () => {
   const language = useAppStore((s) => s.language);
   const immersivePreset = useAppStore((s) => s.immersivePreset);
   const playbackStatus = useAppStore((s) => s.playbackStatus);
+  const userLocation = useAppStore((s) => s.userLocation);
 
   const selectStation = useAppStore((s) => s.selectStation);
   const setSpotStations = useAppStore((s) => s.setSpotStations);
@@ -335,6 +336,7 @@ export const GlobeCanvas: React.FC = () => {
     language,
     immersivePreset,
     playbackStatus,
+    userLocation,
     hoveredStationIdx: -1,
   });
   stateRef.current = {
@@ -349,6 +351,7 @@ export const GlobeCanvas: React.FC = () => {
     language,
     immersivePreset,
     playbackStatus,
+    userLocation,
   };
 
   // Three.js object refs
@@ -586,6 +589,29 @@ export const GlobeCanvas: React.FC = () => {
     selectionGroup.add(coreMesh);
     scene.add(selectionGroup);
     threeRef.current.selectionGroup = selectionGroup;
+
+    // Sky-blue User Geolocation Beacon on the 3D Earth
+    const userGroup = new THREE.Group();
+    userGroup.visible = false;
+    const userRingGeo = new THREE.RingGeometry(0.009, 0.0125, 48);
+    const userRingMat = new THREE.MeshBasicMaterial({
+      color: '#38bdf8',
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.85,
+      depthTest: false,
+    });
+    const userRingMesh = new THREE.Mesh(userRingGeo, userRingMat);
+    const userCoreGeo = new THREE.CircleGeometry(0.005, 32);
+    const userCoreMat = new THREE.MeshBasicMaterial({
+      color: '#e0f2fe',
+      side: THREE.DoubleSide,
+      depthTest: false,
+    });
+    const userCoreMesh = new THREE.Mesh(userCoreGeo, userCoreMat);
+    userGroup.add(userRingMesh);
+    userGroup.add(userCoreMesh);
+    scene.add(userGroup);
 
     // Flight arc line
     const arcGeo = new THREE.BufferGeometry();
@@ -984,6 +1010,23 @@ export const GlobeCanvas: React.FC = () => {
       } else {
         selectionGroup.visible = false;
         earthUniforms.uStationPos.value.set(0, 0, 0);
+      }
+
+      // Update user location beacon on the 3D globe if detected
+      const uLoc = stateRef.current.userLocation;
+      if (uLoc) {
+        userGroup.visible = true;
+        const uPos = latLngToVec3(uLoc.lat, uLoc.lng, 1.0055);
+        userGroup.position.set(uPos[0], uPos[1], uPos[2]);
+        userGroup.lookAt(uPos[0] * 2, uPos[1] * 2, uPos[2] * 2);
+        const uPulse = ((now * 0.00075) + 0.5) % 1;
+        const uScale = (1 + uPulse * 1.6) * (cs.distance / 2.4);
+        userRingMesh.scale.set(uScale, uScale, 1);
+        userRingMat.opacity = (1 - uPulse) * 0.8;
+        const uCoreScale = cs.distance / 2.4;
+        userCoreMesh.scale.set(uCoreScale, uCoreScale, 1);
+      } else {
+        userGroup.visible = false;
       }
 
       // Update geodesic flight arc animation

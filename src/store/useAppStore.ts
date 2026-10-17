@@ -133,6 +133,13 @@ export interface AppState extends PersistedSettings, PersistedLibrary {
   historyBackStack: StationSummary[];
 
   // Camera & Globe interaction
+  userLocation: {
+    lat: number;
+    lng: number;
+    city?: string;
+    countryCode?: string;
+  } | null;
+  isLocatingUser: boolean;
   cameraTarget: {
     lat: number;
     lng: number;
@@ -166,6 +173,7 @@ export interface AppState extends PersistedSettings, PersistedLibrary {
   playPrevious: () => void;
   playNextNearest: () => void;
   playSurpriseMe: () => void;
+  detectUserLocation: () => Promise<void>;
   locateCurrentStation: () => void;
   flyToCoords: (lat: number, lng: number, distance?: number, fullSpin?: boolean) => void;
 
@@ -247,6 +255,8 @@ export const useAppStore = create<AppState>((set, get) => {
     playbackStatus: 'idle',
     historyBackStack: [],
 
+    userLocation: null,
+    isLocatingUser: false,
     cameraTarget: null,
     flightArc: null,
 
@@ -464,6 +474,154 @@ export const useAppStore = create<AppState>((set, get) => {
         country_code: picked.countryCode,
       });
       get().selectStation(picked, { pushHistory: true, fullSpin: true, flyTo: true });
+    },
+
+    detectUserLocation: async () => {
+      if (get().isLocatingUser) return;
+      set({ isLocatingUser: true });
+
+      let resolved: {
+        lat: number;
+        lng: number;
+        city?: string;
+        countryCode?: string;
+        source: string;
+      } | null = null;
+
+      // Tier 1: Browser Geolocation API (fast fix)
+      if (typeof navigator !== 'undefined' && 'geolocation' in navigator) {
+        try {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: false,
+              timeout: 4200,
+              maximumAge: 300000,
+            });
+          });
+          resolved = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            source: 'gps',
+          };
+        } catch {
+          // Fall through silently to HTTPS GeoIP fallback
+        }
+      }
+
+      // Tier 2: Automatic HTTPS GeoIP Fallback (GeoJS -> ipwho.is)
+      if (!resolved) {
+        try {
+          const ctrl = new AbortController();
+          const timer = window.setTimeout(() => ctrl.abort(), 3800);
+          const res = await fetch('https://get.geojs.io/v1/ip/geo.json', {
+            signal: ctrl.signal,
+          });
+          window.clearTimeout(timer);
+          if (res.ok) {
+            const data = await res.json();
+            const lat = Number.parseFloat(data.latitude);
+            const lng = Number.parseFloat(data.longitude);
+            if (Number.isFinite(lat) && Number.isFinite(lng)) {
+              resolved = {
+                lat,
+                lng,
+                city: data.city || data.region || undefined,
+                countryCode: data.country_code || undefined,
+                source: 'geoip',
+              };
+            }
+          }
+        } catch {}
+      }
+
+      if (!resolved) {
+        try {
+          const ctrl = new AbortController();
+          const timer = window.setTimeout(() => ctrl.abort(), 3800);
+          const res = await fetch('https://ipwho.is/', { signal: ctrl.signal });
+          window.clearTimeout(timer);
+          if (res.ok) {
+            const data = await res.json();
+            if (Number.isFinite(data.latitude) && Number.isFinite(data.longitude)) {
+              resolved = {
+                lat: data.latitude,
+                lng: data.longitude,
+                city: data.city || undefined,
+                countryCode: data.country_code || undefined,
+                source: 'ipwhois',
+              };
+            }
+          }
+        } catch {}
+      }
+
+      // Tier 3: IANA Timezone station centroid fallback
+      if (!resolved) {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const { preciseStations } = get();
+        const tzMatches = tz ? preciseStations.filter((s) => s.timezone === tz) : [];
+        if (tzMatches.length > 0) {
+          const sample = tzMatches[0];
+          resolved = {
+            lat: sample.lat,
+            lng: sample.lng,
+            city: sample.region,
+            countryCode: sample.countryCode,
+            source: 'timezone',
+          };
+        } else {
+          resolved = { lat: 31.2304, lng: 121.4737, countryCode: 'CN', source: 'default' };
+        }
+      }
+
+      const { preciseStations, allStations, filteredStationIds, language } = get();
+      const basePool = preciseStations.length > 0 ? preciseStations : allStations;
+      const pool = filteredStationIds
+        ? basePool.filter((s) => filteredStationIds.has(s.id))
+        : basePool;
+
+      const ranked = pool
+        .map((s) => ({
+          station: s,
+          dist: haversineRad(resolved!.lat, resolved!.lng, s.lat, s.lng),
+        }))
+        .sort((a, b) => a.dist - b.dist || b.station.votes - a.station.votes);
+
+      const nearbyStations = ranked.slice(0, 60).map((r) => r.station);
+      const nearestStation = nearbyStations[0];
+      const detectedCC = resolved.countryCode || nearestStation?.countryCode;
+
+      set({
+        isLocatingUser: false,
+        userLocation: {
+          lat: resolved.lat,
+          lng: resolved.lng,
+          city: resolved.city,
+          countryCode: detectedCC,
+        },
+        selectedCountryCode: null,
+        spotStations: null,
+        searchDrawerStations:
+          nearbyStations.length > 0
+            ? {
+                title:
+                  language === 'zh'
+                    ? `📍 附近电台${resolved.city ? ` · ${resolved.city}` : ''}`
+                    : `📍 Near You${resolved.city ? ` · ${resolved.city}` : ''}`,
+                stations: nearbyStations,
+              }
+            : null,
+      });
+
+      trackEvent('detect_location', {
+        source: resolved.source,
+        country_code: detectedCC || '',
+      });
+
+      get().flyToCoords(resolved.lat, resolved.lng, 2.35, false);
+      if (nearestStation) {
+        await get().selectStation(nearestStation, { pushHistory: true, flyTo: false });
+      }
     },
 
     locateCurrentStation: () => {

@@ -3,6 +3,7 @@ import {
   Compass,
   Dices,
   Loader2,
+  LocateFixed,
   Pause,
   Play,
   Radio,
@@ -31,11 +32,14 @@ export const PlayerDock: React.FC = () => {
   const language = useAppStore((s) => s.language);
   const favorites = useAppStore((s) => s.favorites);
   const inspectorOpen = useAppStore((s) => s.inspectorOpen);
+  const isLocatingUser = useAppStore((s) => s.isLocatingUser);
+  const userLocation = useAppStore((s) => s.userLocation);
 
   const togglePlayPause = useAppStore((s) => s.togglePlayPause);
   const playPrevious = useAppStore((s) => s.playPrevious);
   const playNextNearest = useAppStore((s) => s.playNextNearest);
   const playSurpriseMe = useAppStore((s) => s.playSurpriseMe);
+  const detectUserLocation = useAppStore((s) => s.detectUserLocation);
   const locateCurrentStation = useAppStore((s) => s.locateCurrentStation);
   const toggleFavorite = useAppStore((s) => s.toggleFavorite);
   const setVolume = useAppStore((s) => s.setVolume);
@@ -93,13 +97,28 @@ export const PlayerDock: React.FC = () => {
   if (!currentStation) {
     return (
       <div className="pointer-events-none fixed inset-x-0 bottom-4 sm:bottom-6 z-30 flex justify-center px-3 sm:px-4">
-        <div className="glass-pill pointer-events-auto flex max-w-full items-center gap-3 sm:gap-4 rounded-full py-1.5 sm:py-2 pr-2 sm:pr-2.5 pl-4 sm:pl-5">
+        <div className="glass-pill pointer-events-auto flex max-w-full items-center gap-2 sm:gap-3 rounded-full py-1.5 sm:py-2 pr-2 sm:pr-2.5 pl-4 sm:pl-5">
           <div className="flex min-w-0 items-center gap-2 sm:gap-2.5">
             <Radio className="h-4 w-4 shrink-0 text-cyan-400 animate-pulse" />
             <span className="truncate text-xs sm:text-[13px] font-medium text-slate-200">
               {t(language, 'player.idleHint')}
             </span>
           </div>
+          <button
+            type="button"
+            onClick={() => detectUserLocation()}
+            disabled={isLocatingUser}
+            className="flex shrink-0 items-center gap-1.5 rounded-full border border-cyan-400/35 bg-cyan-400/15 px-3 sm:px-3.5 py-1.5 sm:py-2 text-xs font-semibold text-cyan-200 transition hover:bg-cyan-400/25 hover:text-white"
+          >
+            {isLocatingUser ? (
+              <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+            ) : (
+              <LocateFixed className="h-3.5 w-3.5 shrink-0" />
+            )}
+            <span>
+              {isLocatingUser ? t(language, 'player.locating') : t(language, 'player.nearMe')}
+            </span>
+          </button>
           <button
             type="button"
             onClick={handleSurprise}
@@ -115,7 +134,7 @@ export const PlayerDock: React.FC = () => {
 
   return (
     <footer className="pointer-events-none fixed inset-x-3 sm:inset-x-4 bottom-4 sm:bottom-6 z-30 flex justify-center">
-      <div className="glass-pill pointer-events-auto flex w-full max-w-[680px] items-center justify-between gap-2 sm:gap-4 rounded-full px-3 py-2 sm:px-4 sm:py-2.5">
+      <div className="glass-pill pointer-events-auto flex w-full max-w-[780px] items-center justify-between gap-2 sm:gap-4 rounded-full px-3 py-2 sm:px-4 sm:py-2.5">
         {/* Left: Sonic Vinyl Avatar & Clean 2-Line Station Info */}
         <div className="flex min-w-0 flex-1 items-center gap-2.5 sm:gap-3.5">
           <button
@@ -233,6 +252,24 @@ export const PlayerDock: React.FC = () => {
           >
             <Dices className={`h-3.5 w-3.5 ${diceRolling ? 'animate-spin' : ''}`} />
             <span className="hidden sm:inline">{t(language, 'player.SurpriseMe')}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => detectUserLocation()}
+            disabled={isLocatingUser}
+            title={t(language, 'player.nearMe')}
+            className={`hidden sm:flex h-9 w-9 items-center justify-center rounded-full transition ${
+              userLocation
+                ? 'bg-cyan-400/20 text-cyan-200 ring-1 ring-cyan-400/40'
+                : 'text-slate-300 hover:bg-white/10 hover:text-cyan-300'
+            }`}
+          >
+            {isLocatingUser ? (
+              <Loader2 className="h-4 w-4 animate-spin text-cyan-300" />
+            ) : (
+              <LocateFixed className="h-4 w-4" />
+            )}
           </button>
         </div>
 
