@@ -364,7 +364,7 @@ export const useAppStore = create<AppState>((set, get) => {
           navigator.mediaSession.metadata = new MediaMetadata({
             title: full.name,
             artist: full.region ? `${full.region} · ${full.countryCode}` : full.countryCode,
-            album: 'GeoRadios Live',
+            album: 'AuraFM · 星环电波',
             artwork: full.favicon ? [{ src: full.favicon, sizes: '96x96', type: 'image/png' }] : [],
           });
         } catch {}
